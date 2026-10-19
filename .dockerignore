@@ -1,0 +1,7 @@
+.godot/
+.git/
+.gitignore
+build/web/*.import
+*.md
+!README.md
+deploy/*.md

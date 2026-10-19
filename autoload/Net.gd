@@ -11,11 +11,14 @@ signal disconnected
 
 const DEFAULT_PORT := 9080
 const DEFAULT_HOST := "127.0.0.1"
+## Production reverse-proxy path (nginx → dedicated server).
+const WEB_WS_PATH := "/ws"
 
 var peer: WebSocketMultiplayerPeer
 var is_server: bool = false
 var is_client: bool = false
 var listen_port: int = DEFAULT_PORT
+
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -45,6 +48,27 @@ func _maybe_start_from_cmdline() -> void:
 			print("[Net] Dedicated WebSocket server on port %d" % port)
 
 
+## Desktop: host:port. Web (HTTPS page): wss://same-host/ws
+func get_default_join_address() -> String:
+	if OS.has_feature("web"):
+		return _web_default_ws_url()
+	return "%s:%d" % [DEFAULT_HOST, DEFAULT_PORT]
+
+
+func _web_default_ws_url() -> String:
+	# JavaScriptBridge is only available on the web platform.
+	if not OS.has_feature("web"):
+		return "wss://localhost%s" % WEB_WS_PATH
+	var js := '(() => { const p = location.protocol === "https:" ? "wss:" : "ws:"; return p + "//" + location.host + "%s"; })()' % WEB_WS_PATH
+	var result = JavaScriptBridge.eval(js, true)
+	if result == null:
+		return "wss://localhost%s" % WEB_WS_PATH
+	var url := str(result)
+	if url.is_empty() or url == "null" or url == "undefined":
+		return "wss://localhost%s" % WEB_WS_PATH
+	return url
+
+
 func host(port: int = DEFAULT_PORT) -> Error:
 	close()
 	peer = WebSocketMultiplayerPeer.new()
@@ -64,8 +88,8 @@ func host(port: int = DEFAULT_PORT) -> Error:
 func join(address: String = "") -> Error:
 	close()
 	if address.is_empty():
-		address = "%s:%d" % [DEFAULT_HOST, DEFAULT_PORT]
-	var url := address
+		address = get_default_join_address()
+	var url := address.strip_edges()
 	if not url.begins_with("ws://") and not url.begins_with("wss://"):
 		url = "ws://" + url
 	peer = WebSocketMultiplayerPeer.new()

@@ -1,12 +1,11 @@
 .godot/
 *.translation
-export_presets.cfg
 *.pck
 *.exe
 *.x86_64
 *.apk
 *.aab
-*.wasm
-*.js
-*.html
-!README.md
+# Local export artifacts (Docker copies from build/ at image build time)
+build/
+# Keep export_presets.cfg tracked
+!export_presets.cfg

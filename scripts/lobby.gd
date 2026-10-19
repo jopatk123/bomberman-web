@@ -17,11 +17,16 @@ var _dedicated: bool = false
 func _ready() -> void:
 	name_edit.text = GameState.local_player_name
 	port_edit.text = str(Net.DEFAULT_PORT)
-	address_edit.text = "%s:%d" % [Net.DEFAULT_HOST, Net.DEFAULT_PORT]
+	address_edit.text = Net.get_default_join_address()
 	start_btn.disabled = true
 	_connect_net_signals()
 	GameState.player_list_changed.connect(_refresh_players)
 	_dedicated = Net.is_server and _was_cmdline_server()
+	# Browser cannot host a dedicated listen-server usefully; Hangzhou runs the server.
+	if OS.has_feature("web"):
+		host_btn.visible = false
+		port_edit.editable = false
+		status_label.text = "网页版：填写昵称后加入（默认 wss://当前域名/ws）"
 	if Net.is_server:
 		status_label.text = "服务器已在端口 %d 监听。等待客户端…" % Net.listen_port
 		host_btn.disabled = true

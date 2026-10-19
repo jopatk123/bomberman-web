@@ -1,0 +1,12 @@
+.godot/
+*.translation
+export_presets.cfg
+*.pck
+*.exe
+*.x86_64
+*.apk
+*.aab
+*.wasm
+*.js
+*.html
+!README.md

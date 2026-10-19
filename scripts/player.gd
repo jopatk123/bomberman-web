@@ -16,6 +16,9 @@ func setup(peer_id: int, cell: Vector2i, color: Color, display_name: String, til
 	var label := Label.new()
 	label.text = display_name
 	label.position = Vector2(-24, -36)
+	var font := load("res://assets/fonts/GameCJK.ttf")
+	if font:
+		label.add_theme_font_override("font", font)
 	label.add_theme_font_size_override("font_size", 12)
 	add_child(label)
 

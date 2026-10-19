@@ -57,3 +57,7 @@ place_bomb={
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+
+[gui]
+
+theme/custom="res://assets/ui/default_theme.tres"

@@ -1,0 +1,14 @@
+[Unit]
+Description=Bomberman WebSocket dedicated server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/opt/bomberman-web
+ExecStart=/root/opt/bomberman-web/bin/bomberman-server.x86_64 --headless -- --server --port=9080
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

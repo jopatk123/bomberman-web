@@ -203,5 +203,114 @@ func _run() -> void:
 		return
 	print("[verify_feel] kick powerup OK")
 
+	# --- 6) KickRules: owner pass, blocked, kick ---
+	var sample := {
+		1: {"x": 2, "y": 2, "owner": 1, "solid": false},
+	}
+	var open_slide := func(_dest: Vector2i) -> bool:
+		return true
+	var shut_slide := func(_dest: Vector2i) -> bool:
+		return false
+	var enter: int = KickRules.classify_enter(1, sample, 1, false, 1, 0, shut_slide)
+	if enter != KickRules.Enter.WALK:
+		push_error("[verify_feel] FAIL: owner should walk through own fresh bomb")
+		quit(1)
+		return
+	enter = KickRules.classify_enter(1, sample, 2, false, 1, 0, open_slide)
+	if enter != KickRules.Enter.BLOCKED:
+		push_error("[verify_feel] FAIL: non-owner without kick must not enter a fresh bomb")
+		quit(1)
+		return
+	enter = KickRules.classify_enter(1, sample, 2, true, 1, 0, open_slide)
+	if enter != KickRules.Enter.KICK:
+		push_error("[verify_feel] FAIL: kick should move a fresh bomb when dest is open")
+		quit(1)
+		return
+	sample[1]["solid"] = true
+	enter = KickRules.classify_enter(1, sample, 2, true, 1, 0, shut_slide)
+	if enter != KickRules.Enter.BLOCKED:
+		push_error("[verify_feel] FAIL: kick into a blocked cell should stop")
+		quit(1)
+		return
+	enter = KickRules.classify_enter(1, sample, 2, true, 1, 0, open_slide)
+	if enter != KickRules.Enter.KICK:
+		push_error("[verify_feel] FAIL: kick should be allowed when dest is open")
+		quit(1)
+		return
+	print("[verify_feel] kick classify OK")
+
+	# --- 7) Clock advance does not create lethal cells; sync snaps elapsed ---
+	var clock := SuddenDeath.new()
+	clock.advance_elapsed(SuddenDeath.START_AT + 5.0)
+	if clock.active or not clock.lethal.is_empty():
+		push_error("[verify_feel] FAIL: advance_elapsed changed the zone")
+		quit(1)
+		return
+	game._rpc_sync_match_clock(42.0, false)
+	if absf(float(game.sudden.elapsed) - 42.0) > 0.001:
+		push_error("[verify_feel] FAIL: clock sync did not apply")
+		quit(1)
+		return
+	print("[verify_feel] clock sync OK")
+
+	# --- 8) Shrink ring swallows bomb + powerup without a blast ---
+	game.bombs[56] = {
+		"x": 4, "y": 1, "owner": pid, "timer": 9.0, "range": 2,
+		"solid": true, "slide_dx": 0, "slide_dy": 0, "slide_cd": 0.0,
+	}
+	game._spawn_bomb_visual(56, Vector2i(4, 1))
+	game.powerups[9] = {"x": 4, "y": 1, "kind": 0}
+	game._apply_sudden_ring([Vector2i(4, 1)], PackedInt32Array([56]), PackedInt32Array([9]))
+	if game.bombs.has(56) or game.powerups.has(9) or not game.sudden.is_lethal(Vector2i(4, 1)):
+		push_error("[verify_feel] FAIL: sudden ring did not swallow bomb/powerup")
+		quit(1)
+		return
+	var swallowed: Node = game.entities.get_node_or_null("Bomb_56")
+	if swallowed != null and not swallowed.is_queued_for_deletion():
+		push_error("[verify_feel] FAIL: swallowed bomb visual remains")
+		quit(1)
+		return
+	print("[verify_feel] sudden ring swallow OK")
+
+	# --- 9) Kick into existing fire detonates ---
+	game.player_nodes[pid].set_meta("cell", Vector2i(1, 1))
+	game.grid[1][2] = game.Cell.EMPTY
+	game.grid[1][3] = game.Cell.EMPTY
+	game._repaint_cells([Vector2i(2, 1), Vector2i(3, 1)])
+	var tiles_before: int = game.map_layer.get_child_count()
+	game.sudden.lethal[Vector2i(3, 1)] = true
+	game.bombs[55] = {
+		"x": 2, "y": 1, "owner": pid, "timer": 9.0, "range": 1,
+		"solid": true, "slide_dx": 0, "slide_dy": 0, "slide_cd": 0.0,
+	}
+	if not game._try_kick_bomb(55, 1, 0) or game.bombs.has(55):
+		push_error("[verify_feel] FAIL: bomb kicked into fire should detonate")
+		quit(1)
+		return
+	if game.map_layer.get_child_count() != tiles_before:
+		push_error("[verify_feel] FAIL: repaint rebuilt the map")
+		quit(1)
+		return
+	print("[verify_feel] kick into fire + repaint OK")
+
+	# --- 10) Walking into the blast of a kick-detonation kills ---
+	game.alive[pid] = true
+	game.player_stats[pid].kick = 1
+	game.player_stats[pid].move_cd = 0.0
+	game.player_nodes[pid].set_meta("cell", Vector2i(1, 1))
+	game.grid[1][2] = game.Cell.EMPTY
+	game.grid[1][3] = game.Cell.EMPTY
+	game.sudden.lethal[Vector2i(3, 1)] = true
+	game.bombs[58] = {
+		"x": 2, "y": 1, "owner": pid, "timer": 9.0, "range": 1,
+		"solid": true, "slide_dx": 0, "slide_dy": 0, "slide_cd": 0.0,
+	}
+	game._apply_move(pid, 1, 0)
+	if game.alive.get(pid, false):
+		push_error("[verify_feel] FAIL: player should die walking into kick-detonation blast")
+		quit(1)
+		return
+	print("[verify_feel] kick blast step-in OK")
+
 	print("[verify_feel] SUCCESS")
 	quit(0)

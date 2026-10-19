@@ -5,6 +5,7 @@ extends Node2D
 ##
 ## See BlastRules for blast/chain/powerup destruction rules.
 ## See SuddenDeath for shrinking lethal zone.
+## See KickRules for bomb-pass / kick. See Arena for the 13×11 layout.
 
 const TILE := 48
 const COLS := 13
@@ -59,6 +60,14 @@ var _local_move_cd: float = 0.0
 var sudden: SuddenDeath = SuddenDeath.new()
 ## Permanent sudden-death fire visuals: cell key "x,y" -> Polygon2D
 var _sd_visuals: Dictionary = {}
+## map_polys[y][x] -> Polygon2D. Repaint changed cells instead of rebuilding the map.
+var _map_polys: Array = []
+## Last sudden-death HUD key, so the label is rewritten only when the second changes.
+var _sd_hud_key: String = ""
+## Cells hit by blasts during the current move, so stepping into that flame kills.
+var _blast_hits: Array[Vector2i] = []
+## Seconds until the next authority clock sync during the countdown window.
+var _clock_sync_wait: float = 0.0
 
 
 func _ready() -> void:
@@ -71,7 +80,7 @@ func _ready() -> void:
 		sd_label.visible = false
 	if help_label:
 		help_label.text = "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹"
-	_build_empty_grid()
+	grid = Arena.empty_grid()
 	if Net.is_authority():
 		soft_seed = randi()
 		if Net.is_online():
@@ -93,10 +102,12 @@ func _process(delta: float) -> void:
 			_tick_bombs(delta)
 			_tick_sudden_death(delta)
 			_kill_players_on_lethal()
+			_sync_match_clock(delta)
+	elif not match_over:
+		# HUD clock only. Lethal cells arrive from the host.
+		sudden.advance_elapsed(delta)
 	if not match_over:
 		_poll_local_input()
-	_refresh_spectator_hud()
-	_refresh_stats_hud()
 	_refresh_sudden_death_hud()
 
 
@@ -175,8 +186,10 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary) -> void:
 	bombs.clear()
 	next_bomb_id = 1
 	next_powerup_id = 1
-	_build_empty_grid()
-	_place_soft_walls(soft_seed)
+	_sd_hud_key = ""
+	_clock_sync_wait = 0.0
+	grid = Arena.empty_grid()
+	Arena.place_soft_walls(grid, soft_seed)
 	_init_all_stats()
 	_draw_map()
 	_spawn_all_players()
@@ -190,49 +203,6 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary) -> void:
 	_refresh_sudden_death_hud()
 
 
-func _build_empty_grid() -> void:
-	grid.clear()
-	for y in ROWS:
-		var row: Array = []
-		for x in COLS:
-			var cell := Cell.EMPTY
-			if x == 0 or y == 0 or x == COLS - 1 or y == ROWS - 1:
-				cell = Cell.HARD
-			elif x % 2 == 0 and y % 2 == 0:
-				cell = Cell.HARD
-			row.append(cell)
-		grid.append(row)
-
-
-func _place_soft_walls(seed: int) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
-	var spawns := _spawn_cells()
-	var keep_clear: Dictionary = {}
-	for s in spawns:
-		keep_clear[s] = true
-		var adj: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
-		for d in adj:
-			keep_clear[s + d] = true
-	for y in range(1, ROWS - 1):
-		for x in range(1, COLS - 1):
-			if grid[y][x] != Cell.EMPTY:
-				continue
-			if keep_clear.has(Vector2i(x, y)):
-				continue
-			if rng.randf() < 0.55:
-				grid[y][x] = Cell.SOFT
-
-
-func _spawn_cells() -> Array[Vector2i]:
-	return [
-		Vector2i(1, 1),
-		Vector2i(COLS - 2, 1),
-		Vector2i(1, ROWS - 2),
-		Vector2i(COLS - 2, ROWS - 2),
-	]
-
-
 func _spawn_all_players() -> void:
 	for c in entities.get_children():
 		var n := c as Node
@@ -240,7 +210,7 @@ func _spawn_all_players() -> void:
 			n.queue_free()
 	player_nodes.clear()
 	var ids := GameState.get_sorted_peer_ids()
-	var spawns := _spawn_cells()
+	var spawns := Arena.spawn_cells()
 	var i := 0
 	for peer_id in ids:
 		if i >= spawns.size():
@@ -263,30 +233,50 @@ func _make_player_visual(peer_id: int, cell: Vector2i) -> Node2D:
 	return root
 
 
+func _tile_color(x: int, y: int) -> Color:
+	match int(grid[y][x]):
+		Cell.HARD:
+			return Color(0.25, 0.28, 0.35)
+		Cell.SOFT:
+			return Color(0.7, 0.45, 0.25)
+		_:
+			return Color(0.15, 0.55, 0.25) if (x + y) % 2 == 0 else Color(0.12, 0.48, 0.22)
+
+
 func _draw_map() -> void:
 	for c in map_layer.get_children():
 		(c as Node).queue_free()
+	_map_polys.clear()
 	for y in ROWS:
+		var row: Array = []
 		for x in COLS:
-			var cell: int = grid[y][x]
 			var poly := Polygon2D.new()
 			poly.polygon = PackedVector2Array([
 				Vector2(0, 0), Vector2(TILE, 0), Vector2(TILE, TILE), Vector2(0, TILE)
 			])
 			poly.position = Vector2(x * TILE, y * TILE)
-			match cell:
-				Cell.HARD:
-					poly.color = Color(0.25, 0.28, 0.35)
-				Cell.SOFT:
-					poly.color = Color(0.7, 0.45, 0.25)
-				_:
-					poly.color = Color(0.15, 0.55, 0.25) if (x + y) % 2 == 0 else Color(0.12, 0.48, 0.22)
+			poly.color = _tile_color(x, y)
 			map_layer.add_child(poly)
+			row.append(poly)
+		_map_polys.append(row)
 	var map_w := COLS * TILE
 	var map_h := ROWS * TILE
 	position = Vector2((960 - map_w) * 0.5, (720 - map_h) * 0.5 - 20)
-	# Re-layer SD fire above map tiles after redraw
-	_rebuild_sd_visuals_from_state()
+
+
+## Recolor tiles that changed. Falls back to a full draw if the tile cache is missing.
+func _repaint_cells(cells: Array) -> void:
+	if _map_polys.size() != ROWS:
+		_draw_map()
+		return
+	for c in cells:
+		var x: int = int(c.x)
+		var y: int = int(c.y)
+		if y < 0 or y >= ROWS or x < 0 or x >= COLS:
+			continue
+		var poly: Polygon2D = _map_polys[y][x]
+		if is_instance_valid(poly):
+			poly.color = _tile_color(x, y)
 
 
 func _cell_to_pos(cell: Vector2i) -> Vector2:
@@ -311,6 +301,7 @@ func _apply_move(peer_id: int, dx: int, dy: int) -> void:
 	var st: Dictionary = player_stats.get(peer_id, _default_stats())
 	if float(st.get("move_cd", 0.0)) > 0.0:
 		return
+	_blast_hits.clear()
 	var node: Node2D = player_nodes[peer_id]
 	var cell: Vector2i = node.get_meta("cell")
 	var next := cell + Vector2i(dx, dy)
@@ -319,17 +310,20 @@ func _apply_move(peer_id: int, dx: int, dy: int) -> void:
 	# Sudden-death fire: walking onto lethal kills after move resolves
 	var bid := _bomb_id_at(next)
 	if bid >= 0:
-		var bd: Dictionary = bombs[bid]
-		var solid: bool = bool(bd.get("solid", true))
-		var is_owner := int(bd.owner) == peer_id
-		# Owner bomb-pass: may leave/stand on own non-solid bomb
-		if not solid and is_owner:
-			pass
-		elif int(st.get("kick", 0)) > 0:
-			if not _try_kick_bomb(bid, dx, dy):
+		var has_kick := int(st.get("kick", 0)) > 0
+		var enter := KickRules.classify_enter(
+			bid, bombs, peer_id, has_kick, dx, dy, _can_bomb_slide_to
+		)
+		match enter:
+			KickRules.Enter.BLOCKED:
 				return
-		else:
-			return
+			KickRules.Enter.KICK:
+				if not _try_kick_bomb(bid, dx, dy):
+					return
+				if not alive.get(peer_id, false):
+					return
+			KickRules.Enter.WALK:
+				pass
 	st.move_cd = _cooldown_for(peer_id)
 	player_stats[peer_id] = st
 	var prev := cell
@@ -342,7 +336,7 @@ func _apply_move(peer_id: int, dx: int, dy: int) -> void:
 	else:
 		node.position = _cell_to_pos(cell)
 	_try_pickup_at(peer_id, cell)
-	if sudden.is_lethal(cell):
+	if sudden.is_lethal(cell) or cell in _blast_hits:
 		_kill_player(peer_id)
 
 
@@ -367,9 +361,13 @@ func _try_kick_bomb(bid: int, dx: int, dy: int) -> bool:
 		return false
 	var bd: Dictionary = bombs[bid]
 	var dest := Vector2i(int(bd.x) + dx, int(bd.y) + dy)
-	if not _can_bomb_slide_to(dest):
+	var blockers := _slide_blockers()
+	if not _can_bomb_slide_to(dest, blockers[0], blockers[1]):
 		return false
 	_move_bomb_to(bid, dest)
+	# Entering existing fire detonates immediately and removes the bomb.
+	if not bombs.has(bid):
+		return true
 	bd = bombs[bid]
 	bd.slide_dx = dx
 	bd.slide_dy = dy
@@ -379,15 +377,23 @@ func _try_kick_bomb(bid: int, dx: int, dy: int) -> bool:
 	return true
 
 
-func _can_bomb_slide_to(cell: Vector2i) -> bool:
-	var player_cells: Array = []
+func _slide_blockers() -> Array:
+	var player_cells: Dictionary = {}
 	for peer_id in player_nodes.keys():
 		if not alive.get(peer_id, false):
 			continue
-		player_cells.append(player_nodes[peer_id].get_meta("cell"))
-	var powerup_cells: Array = []
+		player_cells[player_nodes[peer_id].get_meta("cell")] = true
+	var powerup_cells: Dictionary = {}
 	for p in powerups.values():
-		powerup_cells.append(Vector2i(int(p.x), int(p.y)))
+		powerup_cells[Vector2i(int(p.x), int(p.y))] = true
+	return [player_cells, powerup_cells]
+
+
+func _can_bomb_slide_to(cell: Vector2i, player_cells = null, powerup_cells = null) -> bool:
+	if player_cells == null or powerup_cells == null:
+		var blockers := _slide_blockers()
+		player_cells = blockers[0]
+		powerup_cells = blockers[1]
 	return not KickRules.slide_blocked(
 		cell, COLS, ROWS, grid, Cell.HARD, Cell.SOFT, bombs, player_cells, powerup_cells
 	)
@@ -404,10 +410,13 @@ func _move_bomb_to(bid: int, cell: Vector2i) -> void:
 		_rpc_set_bomb_cell.rpc(bid, cell.x, cell.y)
 	else:
 		_apply_bomb_cell_visual(bid, cell)
+	if sudden.is_lethal(cell):
+		_explode(bid)
 
 
 func _tick_bomb_slides(delta: float) -> void:
 	var ids: Array = bombs.keys()
+	var blockers := _slide_blockers()
 	for bid in ids:
 		if not bombs.has(bid):
 			continue
@@ -421,7 +430,7 @@ func _tick_bomb_slides(delta: float) -> void:
 			bombs[bid] = bd
 			continue
 		var dest := Vector2i(int(bd.x) + sdx, int(bd.y) + sdy)
-		if not _can_bomb_slide_to(dest):
+		if not _can_bomb_slide_to(dest, blockers[0], blockers[1]):
 			bd.slide_dx = 0
 			bd.slide_dy = 0
 			bd.slide_cd = 0.0
@@ -430,6 +439,9 @@ func _tick_bomb_slides(delta: float) -> void:
 		bd.slide_cd = KICK_SLIDE_INTERVAL
 		bombs[bid] = bd
 		_move_bomb_to(bid, dest)
+		if not bombs.has(bid):
+			# Detonation can remove players, powerups, and other bombs.
+			blockers = _slide_blockers()
 
 
 @rpc("authority", "call_local", "reliable")
@@ -521,6 +533,7 @@ func _rpc_spawn_bomb(bid: int, x: int, y: int, owner: int, blast: int = BASE_BLA
 			"slide_dx": 0, "slide_dy": 0, "slide_cd": 0.0,
 		}
 	_spawn_bomb_visual(bid, Vector2i(x, y))
+	_refresh_stats_hud()
 
 
 func _spawn_bomb_visual(bid: int, cell: Vector2i) -> void:
@@ -541,6 +554,7 @@ func _clear_bomb_visuals() -> void:
 
 
 func _tick_bombs(delta: float) -> void:
+	_blast_hits.clear()
 	var to_explode: Array = []
 	for bid in bombs.keys():
 		bombs[bid].timer = float(bombs[bid].timer) - delta
@@ -559,6 +573,7 @@ func _explode(bid: int) -> void:
 	bombs.erase(bid)
 	var computed := BlastRules.compute_rays(grid, Vector2i(bx, by), blast, COLS, ROWS)
 	var hit_cells: Array[Vector2i] = computed.hit
+	_blast_hits.append_array(hit_cells)
 	var cleared_soft: Array[Vector2i] = computed.cleared_soft
 	for c in cleared_soft:
 		grid[c.y][c.x] = Cell.EMPTY
@@ -596,9 +611,10 @@ func _explode(bid: int) -> void:
 		_rpc_bomb_boom.rpc(bid, BlastRules.cells_to_packed(hit_cells), clear_pack, spawn_pack)
 	else:
 		_apply_boom_visual(bid, hit_cells)
-		_redraw_soft_from_grid()
+		_repaint_cells(cleared_soft)
 		for s in spawned:
 			_spawn_powerup_visual(int(s.id), Vector2i(int(s.x), int(s.y)), int(s.kind))
+		_refresh_stats_hud()
 	_kill_players_in(hit_cells)
 	# Destroy powerups in blast (except freshly spawned from this explosion)
 	_destroy_powerups_in(hit_cells, spawned)
@@ -626,7 +642,7 @@ func _rpc_bomb_boom(bid: int, hit_xy: PackedInt32Array, clear_xy: PackedInt32Arr
 		if y >= 0 and y < ROWS and x >= 0 and x < COLS:
 			grid[y][x] = Cell.EMPTY
 	_apply_boom_visual(bid, hit_cells)
-	_redraw_soft_from_grid()
+	_repaint_cells(BlastRules.packed_to_cells(clear_xy))
 	for i in range(0, spawn_xy.size(), 4):
 		var pid: int = spawn_xy[i]
 		var px: int = spawn_xy[i + 1]
@@ -649,6 +665,7 @@ func _rpc_bomb_boom(bid: int, hit_xy: PackedInt32Array, clear_xy: PackedInt32Arr
 				to_rm.append(pid)
 		for pid in to_rm:
 			_remove_powerup(pid)
+	_refresh_stats_hud()
 
 
 func _destroy_powerups_in(hit_cells: Array[Vector2i], just_spawned: Array) -> void:
@@ -697,10 +714,6 @@ func _apply_boom_visual(bid: int, hit_cells: Array[Vector2i]) -> void:
 			if is_instance_valid(core):
 				core.queue_free()
 		)
-
-
-func _redraw_soft_from_grid() -> void:
-	_draw_map()
 
 
 # --- Power-ups ----------------------------------------------------------------
@@ -817,38 +830,64 @@ func _tick_sudden_death(delta: float) -> void:
 	var r: Dictionary = sudden.tick(delta, COLS, ROWS, grid, Cell.HARD)
 	if r.just_activated:
 		if Net.is_online():
-			_rpc_sudden_death_start.rpc()
+			_rpc_sudden_death_start.rpc(sudden.elapsed)
 		else:
 			_on_sudden_death_started()
 	var new_cells: Array = r.new_cells
 	if new_cells.is_empty():
 		return
-	var cleared_soft: Array[Vector2i] = []
+	var bomb_ids := PackedInt32Array()
+	var powerup_ids := PackedInt32Array()
 	for c in new_cells:
-		if grid[c.y][c.x] == Cell.SOFT:
-			grid[c.y][c.x] = Cell.EMPTY
-			cleared_soft.append(c)
-		# Destroy bombs and powerups in new fire
 		var bid := _bomb_id_at(c)
 		if bid >= 0:
-			bombs.erase(bid)
-			var bn := entities.get_node_or_null("Bomb_%d" % bid)
-			if bn:
-				bn.queue_free()
-		var to_rm_pu: Array = []
+			bomb_ids.append(bid)
 		for pid in powerups.keys():
 			var p: Dictionary = powerups[pid]
 			if int(p.x) == c.x and int(p.y) == c.y:
-				to_rm_pu.append(pid)
-		for pid in to_rm_pu:
-			_remove_powerup(pid)
-	if not cleared_soft.is_empty():
-		_redraw_soft_from_grid()
-	var pack := BlastRules.cells_to_packed(new_cells)
+				powerup_ids.append(int(pid))
 	if Net.is_online():
-		_rpc_sudden_death_add.rpc(pack)
+		_rpc_sudden_death_add.rpc(BlastRules.cells_to_packed(new_cells), bomb_ids, powerup_ids, sudden.elapsed)
 	else:
-		_add_sd_visuals(new_cells)
+		_apply_sudden_ring(new_cells, bomb_ids, powerup_ids)
+
+
+## One path for host and clients: clear soft walls, swallow bombs and powerups, paint fire.
+## The shrink ring consumes bombs; it does not detonate them.
+func _apply_sudden_ring(cells: Array, bomb_ids: PackedInt32Array, powerup_ids: PackedInt32Array) -> void:
+	var cleared: Array[Vector2i] = []
+	for c in cells:
+		sudden.lethal[c] = true
+		if c.y < 0 or c.y >= ROWS or c.x < 0 or c.x >= COLS:
+			continue
+		if grid[c.y][c.x] == Cell.SOFT:
+			grid[c.y][c.x] = Cell.EMPTY
+			cleared.append(c)
+	for i in bomb_ids.size():
+		var bid := int(bomb_ids[i])
+		bombs.erase(bid)
+		var bn := entities.get_node_or_null("Bomb_%d" % bid)
+		if bn:
+			bn.queue_free()
+	for i in powerup_ids.size():
+		_remove_powerup(int(powerup_ids[i]))
+	if not cleared.is_empty():
+		_repaint_cells(cleared)
+	_add_sd_visuals(cells)
+	if bomb_ids.size() > 0:
+		_refresh_stats_hud()
+
+
+func _sync_match_clock(delta: float) -> void:
+	if not Net.is_online() or match_over:
+		return
+	if sudden.elapsed < SuddenDeath.START_AT - 30.0:
+		return
+	_clock_sync_wait -= delta
+	if _clock_sync_wait > 0.0:
+		return
+	_clock_sync_wait = 1.0
+	_rpc_sync_match_clock.rpc(sudden.elapsed, sudden.active)
 
 
 func _kill_players_on_lethal() -> void:
@@ -873,25 +912,32 @@ func _kill_player(peer_id: int) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_sudden_death_start() -> void:
+func _rpc_sudden_death_start(elapsed: float) -> void:
+	sudden.elapsed = elapsed
 	_on_sudden_death_started()
 
 
 func _on_sudden_death_started() -> void:
 	sudden.active = true
+	_sd_hud_key = ""
 	if status_label:
 		status_label.text = "⚠ 突然死亡！"
+	_refresh_sudden_death_hud()
+
+
+@rpc("authority", "reliable")
+func _rpc_sync_match_clock(elapsed: float, is_active: bool) -> void:
+	sudden.elapsed = elapsed
+	if is_active:
+		sudden.active = true
+	_sd_hud_key = ""
+	_refresh_sudden_death_hud()
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_sudden_death_add(xy: PackedInt32Array) -> void:
-	var cells := BlastRules.packed_to_cells(xy)
-	for c in cells:
-		sudden.lethal[c] = true
-		if grid[c.y][c.x] == Cell.SOFT:
-			grid[c.y][c.x] = Cell.EMPTY
-	_redraw_soft_from_grid()
-	_add_sd_visuals(cells)
+func _rpc_sudden_death_add(xy: PackedInt32Array, bomb_ids: PackedInt32Array, powerup_ids: PackedInt32Array, elapsed: float) -> void:
+	sudden.elapsed = elapsed
+	_apply_sudden_ring(BlastRules.packed_to_cells(xy), bomb_ids, powerup_ids)
 
 
 func _add_sd_visuals(cells: Array) -> void:
@@ -910,19 +956,6 @@ func _add_sd_visuals(cells: Array) -> void:
 		_sd_visuals[key] = poly
 
 
-func _rebuild_sd_visuals_from_state() -> void:
-	# After map redraw, recreate SD overlays from lethal set
-	for key in _sd_visuals.keys():
-		var n: Node = _sd_visuals[key]
-		if is_instance_valid(n):
-			n.queue_free()
-	_sd_visuals.clear()
-	var cells: Array[Vector2i] = []
-	for c in sudden.lethal.keys():
-		cells.append(c)
-	_add_sd_visuals(cells)
-
-
 func _clear_sd_visuals() -> void:
 	for key in _sd_visuals.keys():
 		var n: Node = _sd_visuals[key]
@@ -934,19 +967,23 @@ func _clear_sd_visuals() -> void:
 func _refresh_sudden_death_hud() -> void:
 	if sd_label == null:
 		return
-	if match_over:
-		sd_label.visible = false
+	var key := "hide"
+	var text := ""
+	if not match_over:
+		if sudden.active:
+			key = "active"
+			text = "突然死亡 · 安全区收缩中"
+		else:
+			var left: float = maxf(0.0, SuddenDeath.START_AT - sudden.elapsed)
+			if left <= 30.0 and left > 0.0:
+				key = "cd:%d" % int(ceili(left))
+				text = "突然死亡倒计时 %d 秒" % int(ceili(left))
+	if key == _sd_hud_key:
 		return
-	if sudden.active:
-		sd_label.visible = true
-		sd_label.text = "突然死亡 · 安全区收缩中"
-		return
-	var left: float = maxf(0.0, SuddenDeath.START_AT - sudden.elapsed)
-	if left <= 30.0 and left > 0.0:
-		sd_label.visible = true
-		sd_label.text = "突然死亡倒计时 %d 秒" % int(ceili(left))
-	else:
-		sd_label.visible = false
+	_sd_hud_key = key
+	sd_label.visible = key != "hide"
+	if key != "hide":
+		sd_label.text = text
 
 
 # --- Combat / end -------------------------------------------------------------
@@ -1003,6 +1040,7 @@ func _show_end_screen(winner_name: String) -> void:
 	end_title.text = "对局结束\n%s 获胜！" % winner_name
 	end_panel.visible = true
 	rematch_btn.disabled = false
+	_refresh_spectator_hud()
 	if Net.is_online() and Net.is_client:
 		rematch_btn.text = "再来一局（请求主机）"
 	else:

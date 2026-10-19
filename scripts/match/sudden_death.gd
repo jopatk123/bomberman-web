@@ -24,6 +24,12 @@ func reset() -> void:
 	_pulse_left = 0.0
 
 
+## Advance the shared match clock only. Clients call this for the HUD.
+## Lethal cells stay authority-owned via tick().
+func advance_elapsed(delta: float) -> void:
+	elapsed += delta
+
+
 ## Call each authority frame while match is running.
 ## Returns { "just_activated": bool, "new_cells": Array[Vector2i],
 ##           "countdown": float, "active": bool }
@@ -34,7 +40,7 @@ func tick(delta: float, cols: int, rows: int, grid: Array, cell_hard: int) -> Di
 		"countdown": maxf(0.0, START_AT - elapsed),
 		"active": active,
 	}
-	elapsed += delta
+	advance_elapsed(delta)
 	result.countdown = maxf(0.0, START_AT - elapsed)
 	if elapsed < START_AT:
 		return result

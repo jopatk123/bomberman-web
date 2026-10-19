@@ -154,3 +154,7 @@ bomberman.jopatk.top {
 - 道具与多雷
 - 房间码
 - 观战
+
+## 开发约定
+
+项目分层与提交规则见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。新玩法逻辑优先放 `scripts/match/`，场景脚本只做编排与 RPC。

@@ -357,11 +357,7 @@ func _solidify_bombs_left_by(peer_id: int, left_cell: Vector2i) -> void:
 
 
 func _bomb_id_at(cell: Vector2i) -> int:
-	for bid in bombs.keys():
-		var bd: Dictionary = bombs[bid]
-		if int(bd.x) == cell.x and int(bd.y) == cell.y:
-			return int(bid)
-	return -1
+	return KickRules.bomb_id_at(bombs, cell)
 
 
 ## Kick: slide bomb one step immediately; keep sliding each tick until blocked.
@@ -384,24 +380,17 @@ func _try_kick_bomb(bid: int, dx: int, dy: int) -> bool:
 
 
 func _can_bomb_slide_to(cell: Vector2i) -> bool:
-	if cell.x < 0 or cell.y < 0 or cell.x >= COLS or cell.y >= ROWS:
-		return false
-	var t: int = grid[cell.y][cell.x]
-	if t != Cell.EMPTY:
-		return false
-	if _bomb_id_at(cell) >= 0:
-		return false
-	# Prefer: bomb stops on powerup cell without collecting
-	for p in powerups.values():
-		if int(p.x) == cell.x and int(p.y) == cell.y:
-			return false
+	var player_cells: Array = []
 	for peer_id in player_nodes.keys():
 		if not alive.get(peer_id, false):
 			continue
-		var pc: Vector2i = player_nodes[peer_id].get_meta("cell")
-		if pc == cell:
-			return false
-	return true
+		player_cells.append(player_nodes[peer_id].get_meta("cell"))
+	var powerup_cells: Array = []
+	for p in powerups.values():
+		powerup_cells.append(Vector2i(int(p.x), int(p.y)))
+	return not KickRules.slide_blocked(
+		cell, COLS, ROWS, grid, Cell.HARD, Cell.SOFT, bombs, player_cells, powerup_cells
+	)
 
 
 func _move_bomb_to(bid: int, cell: Vector2i) -> void:

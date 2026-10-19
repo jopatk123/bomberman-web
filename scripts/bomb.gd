@@ -1,12 +1,15 @@
 extends Node2D
-## Bomb visual. Fuse / blast simulated on authority (game_root.gd).
+## Bomb visual. Fuse / blast / kick slide simulated on authority (game_root.gd).
 
 var _age: float = 0.0
 var _body: Polygon2D
+var _tile: int = 48
 
 
 func setup(bid: int, cell: Vector2i, tile: int) -> void:
 	name = "Bomb_%d" % bid
+	_tile = tile
+	set_meta("cell", cell)
 	position = Vector2(cell.x * tile + tile * 0.5, cell.y * tile + tile * 0.5)
 	_body = Polygon2D.new()
 	var pts: PackedVector2Array = []
@@ -25,6 +28,11 @@ func setup(bid: int, cell: Vector2i, tile: int) -> void:
 	spark.name = "Spark"
 	add_child(spark)
 	set_process(true)
+
+
+func set_cell(cell: Vector2i) -> void:
+	set_meta("cell", cell)
+	position = Vector2(cell.x * _tile + _tile * 0.5, cell.y * _tile + _tile * 0.5)
 
 
 func _process(delta: float) -> void:

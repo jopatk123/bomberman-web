@@ -26,11 +26,22 @@ text = "加载中…"
 [node name="Stats" type="Label" parent="HUD"]
 offset_left = 16.0
 offset_top = 40.0
-offset_right = 700.0
+offset_right = 760.0
 offset_bottom = 66.0
 theme_override_colors/font_color = Color(0.95, 0.92, 0.7, 1)
 theme_override_font_sizes/font_size = 15
-text = "炸弹 0/1  ·  火力 2  ·  移速 Lv0"
+text = "炸弹 0/1  ·  火力 2  ·  移速 Lv0  ·  踢弹 关"
+
+[node name="SuddenDeathLabel" type="Label" parent="HUD"]
+visible = false
+offset_left = 280.0
+offset_top = 12.0
+offset_right = 680.0
+offset_bottom = 40.0
+theme_override_colors/font_color = Color(1, 0.4, 0.25, 1)
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+text = "突然死亡倒计时"
 
 [node name="SpecLabel" type="Label" parent="HUD"]
 visible = false
@@ -50,7 +61,7 @@ offset_right = 920.0
 offset_bottom = 708.0
 theme_override_colors/font_color = Color(0.8, 0.85, 0.9, 1)
 theme_override_font_sizes/font_size = 13
-text = "WASD/方向键移动 · 空格放炸弹 · 拆软墙掉道具：蓝B+炸弹 / 红R+火力 / 青S+移速"
+text = "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹"
 
 [node name="BackBtn" type="Button" parent="HUD"]
 offset_left = 820.0

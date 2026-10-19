@@ -1,17 +1,19 @@
 extends Node2D
 ## Visual pickup. Simulation / ownership lives on authority (game_root.gd).
 
-enum Kind { BOMB = 0, RANGE = 1, SPEED = 2 }
+enum Kind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3 }
 
 const COLORS := {
 	Kind.BOMB: Color(0.15, 0.35, 0.95),
 	Kind.RANGE: Color(0.95, 0.35, 0.15),
 	Kind.SPEED: Color(0.2, 0.85, 0.95),
+	Kind.KICK: Color(0.75, 0.25, 0.9),
 }
 const LABELS := {
 	Kind.BOMB: "B+",
 	Kind.RANGE: "R+",
 	Kind.SPEED: "S+",
+	Kind.KICK: "K",
 }
 
 var kind: int = Kind.BOMB

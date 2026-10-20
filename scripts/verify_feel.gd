@@ -312,5 +312,124 @@ func _run() -> void:
 		return
 	print("[verify_feel] kick blast step-in OK")
 
+	# --- 11) Pierce rays: soft stops by default; pierce continues; hard always stops ---
+	var pg: Array = []
+	for y in 5:
+		var row: Array = []
+		for x in 7:
+			row.append(BlastRules.CELL_EMPTY)
+		pg.append(row)
+	var origin := Vector2i(1, 2)
+	pg[2][2] = BlastRules.CELL_SOFT
+	pg[2][3] = BlastRules.CELL_SOFT
+	pg[2][4] = BlastRules.CELL_EMPTY
+	pg[2][5] = BlastRules.CELL_HARD
+	pg[2][6] = BlastRules.CELL_SOFT
+	var plain: Dictionary = BlastRules.compute_rays(pg, origin, 5, 7, 5)
+	var plain_off: Dictionary = BlastRules.compute_rays(pg, origin, 5, 7, 5, false)
+	var pierced: Dictionary = BlastRules.compute_rays(pg, origin, 5, 7, 5, true)
+	if plain.hit != plain_off.hit or plain.cleared_soft != plain_off.cleared_soft:
+		push_error("[verify_feel] FAIL: pierce default should match pierce=false")
+		quit(1)
+		return
+	if Vector2i(2, 2) not in plain.hit or Vector2i(2, 2) not in plain.cleared_soft:
+		push_error("[verify_feel] FAIL: non-pierce should hit the first soft")
+		quit(1)
+		return
+	if Vector2i(3, 2) in plain.hit or Vector2i(4, 2) in plain.hit:
+		push_error("[verify_feel] FAIL: non-pierce ray continued past soft")
+		quit(1)
+		return
+	if Vector2i(3, 2) not in pierced.hit or Vector2i(3, 2) not in pierced.cleared_soft:
+		push_error("[verify_feel] FAIL: pierce should clear the second soft")
+		quit(1)
+		return
+	if Vector2i(4, 2) not in pierced.hit:
+		push_error("[verify_feel] FAIL: pierce should continue into empty past softs")
+		quit(1)
+		return
+	if Vector2i(5, 2) in pierced.hit or Vector2i(6, 2) in pierced.hit or Vector2i(6, 2) in pierced.cleared_soft:
+		push_error("[verify_feel] FAIL: pierce should stop at hard without hitting past it")
+		quit(1)
+		return
+	print("[verify_feel] pierce blast rules OK")
+
+	# --- 12) In-game: pierce is copied onto the bomb at place time ---
+	game.bombs.clear()
+	game._clear_bomb_visuals()
+	game.alive[pid] = true
+	game.player_stats[pid].bombs = game.MAX_BOMBS
+	game.player_stats[pid].range = 4
+	game.player_stats[pid].pierce = 0
+	# Row y=3: soft, soft, empty, hard, soft. Row y=9 is the post-pickup bomb.
+	for row_y in [3, 9]:
+		game.grid[row_y][1] = game.Cell.EMPTY
+		game.grid[row_y][2] = game.Cell.SOFT
+		game.grid[row_y][3] = game.Cell.SOFT
+		game.grid[row_y][4] = game.Cell.EMPTY
+		game.grid[row_y][5] = game.Cell.HARD
+		game.grid[row_y][6] = game.Cell.SOFT
+	game.player_nodes[pid].set_meta("cell", Vector2i(1, 3))
+	game.player_nodes[pid].position = game._cell_to_pos(Vector2i(1, 3))
+	var ids_before: Array = game.bombs.keys()
+	game._try_place_bomb(pid)
+	var bid_a := -1
+	for k in game.bombs.keys():
+		if not ids_before.has(k):
+			bid_a = int(k)
+			break
+	if bid_a < 0 or int(game.bombs[bid_a].get("pierce", -1)) != 0:
+		push_error("[verify_feel] FAIL: bomb placed before pierce should store pierce=0")
+		quit(1)
+		return
+	game.powerups[8801] = {"x": 8, "y": 3, "kind": game.PKind.PIERCE}
+	game._try_pickup_at(pid, Vector2i(8, 3))
+	if int(game.player_stats[pid].get("pierce", 0)) != 1:
+		push_error("[verify_feel] FAIL: pickup should set pierce=1")
+		quit(1)
+		return
+	if int(game.bombs[bid_a].get("pierce", -1)) != 0:
+		push_error("[verify_feel] FAIL: pickup retroactively pierced an existing bomb")
+		quit(1)
+		return
+	if not str(game.stats_label.text).contains("穿透 开"):
+		push_error("[verify_feel] FAIL: HUD missing 穿透 开, got %s" % game.stats_label.text)
+		quit(1)
+		return
+	game.player_nodes[pid].set_meta("cell", Vector2i(1, 9))
+	game.player_nodes[pid].position = game._cell_to_pos(Vector2i(1, 9))
+	ids_before = game.bombs.keys()
+	game._try_place_bomb(pid)
+	var bid_b := -1
+	for k in game.bombs.keys():
+		if not ids_before.has(k):
+			bid_b = int(k)
+			break
+	if bid_b < 0 or int(game.bombs[bid_b].get("pierce", -1)) != 1:
+		push_error("[verify_feel] FAIL: bomb placed after pickup should store pierce=1")
+		quit(1)
+		return
+	game.player_nodes[pid].set_meta("cell", Vector2i(11, 1))
+	game.player_nodes[pid].position = game._cell_to_pos(Vector2i(11, 1))
+	game._explode(bid_a)
+	if int(game.grid[3][2]) != game.Cell.EMPTY or int(game.grid[3][3]) != game.Cell.SOFT:
+		push_error("[verify_feel] FAIL: non-pierce explode should stop on the first soft")
+		quit(1)
+		return
+	if int(game.grid[3][6]) != game.Cell.SOFT or int(game.grid[3][5]) != game.Cell.HARD:
+		push_error("[verify_feel] FAIL: non-pierce explode changed cells behind the first soft")
+		quit(1)
+		return
+	game._explode(bid_b)
+	if int(game.grid[9][2]) != game.Cell.EMPTY or int(game.grid[9][3]) != game.Cell.EMPTY:
+		push_error("[verify_feel] FAIL: pierce explode should clear every soft in range")
+		quit(1)
+		return
+	if int(game.grid[9][5]) != game.Cell.HARD or int(game.grid[9][6]) != game.Cell.SOFT:
+		push_error("[verify_feel] FAIL: pierce explode should stop on hard and leave the soft past it")
+		quit(1)
+		return
+	print("[verify_feel] pierce place/explode OK")
+
 	print("[verify_feel] SUCCESS")
 	quit(0)

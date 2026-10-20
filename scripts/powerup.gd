@@ -1,19 +1,21 @@
 extends Node2D
 ## Visual pickup. Simulation / ownership lives on authority (game_root.gd).
 
-enum Kind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3 }
+enum Kind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3, PIERCE = 4 }
 
 const COLORS := {
 	Kind.BOMB: Color(0.15, 0.35, 0.95),
 	Kind.RANGE: Color(0.95, 0.35, 0.15),
 	Kind.SPEED: Color(0.2, 0.85, 0.95),
 	Kind.KICK: Color(0.75, 0.25, 0.9),
+	Kind.PIERCE: Color(0.95, 0.78, 0.12),
 }
 const LABELS := {
 	Kind.BOMB: "B+",
 	Kind.RANGE: "R+",
 	Kind.SPEED: "S+",
 	Kind.KICK: "K",
+	Kind.PIERCE: "P",
 }
 
 var kind: int = Kind.BOMB
@@ -52,7 +54,10 @@ func setup(pid: int, cell: Vector2i, pkind: int, tile: int) -> void:
 	if font:
 		label.add_theme_font_override("font", font)
 	label.add_theme_font_size_override("font_size", 11)
-	label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
+	var font_col := Color(1, 1, 1, 0.95)
+	if pkind == Kind.PIERCE:
+		font_col = Color(0.18, 0.1, 0.02, 1)
+	label.add_theme_color_override("font_color", font_col)
 	add_child(label)
 
 	set_process(true)

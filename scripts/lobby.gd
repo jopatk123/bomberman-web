@@ -1,5 +1,5 @@
 extends Control
-## Lobby: create/join WebSocket room, start match.
+## Lobby: create/join WebSocket room, pick map/seed, start match.
 
 @onready var name_edit: LineEdit = %NameEdit
 @onready var port_edit: LineEdit = %PortEdit
@@ -10,8 +10,12 @@ extends Control
 @onready var join_btn: Button = %JoinBtn
 @onready var start_btn: Button = %StartBtn
 @onready var solo_btn: Button = %SoloBtn
+@onready var map_option: OptionButton = %MapOption
+@onready var map_desc_label: Label = %MapDescLabel
+@onready var seed_edit: LineEdit = %SeedEdit
 
 var _dedicated: bool = false
+var _suppress_map_signals: bool = false
 
 
 func _ready() -> void:
@@ -19,6 +23,9 @@ func _ready() -> void:
 	port_edit.text = str(Net.DEFAULT_PORT)
 	address_edit.text = Net.get_default_join_address()
 	start_btn.disabled = true
+	_fill_map_options()
+	_apply_map_ui_from_state()
+	_connect_map_signals()
 	_connect_net_signals()
 	GameState.player_list_changed.connect(_refresh_players)
 	_dedicated = Net.is_server and _was_cmdline_server()
@@ -37,11 +44,93 @@ func _ready() -> void:
 			GameState.reset_lobby()
 			start_btn.disabled = true
 			status_label.text = "专用服务器模式：≥2 名客户端加入后自动开局（也可由客户端请求开始）"
+			_set_map_controls_editable(false)
 		else:
 			GameState.reset_lobby()
 			GameState.register_local_as_host()
 			start_btn.disabled = false
+			_set_map_controls_editable(true)
 		_refresh_players()
+	else:
+		_set_map_controls_editable(true)
+
+
+func _fill_map_options() -> void:
+	map_option.clear()
+	for id in range(int(Arena.MapId.CLASSIC), int(Arena.MapId.MAZE) + 1):
+		map_option.add_item(Arena.map_name(id), id)
+
+
+func _connect_map_signals() -> void:
+	if not map_option.item_selected.is_connected(_on_map_selected):
+		map_option.item_selected.connect(_on_map_selected)
+	if not seed_edit.text_changed.is_connected(_on_seed_changed):
+		seed_edit.text_changed.connect(_on_seed_changed)
+
+
+func _apply_map_ui_from_state() -> void:
+	_suppress_map_signals = true
+	var mid := Arena.clamp_map_id(GameState.map_id)
+	var idx := map_option.get_item_index(mid)
+	if idx >= 0:
+		map_option.select(idx)
+	else:
+		map_option.select(0)
+	seed_edit.text = GameState.seed_input
+	map_desc_label.text = Arena.map_desc(mid)
+	_suppress_map_signals = false
+
+
+func _set_map_controls_editable(editable: bool) -> void:
+	map_option.disabled = not editable
+	seed_edit.editable = editable
+
+
+func _on_map_selected(index: int) -> void:
+	if _suppress_map_signals:
+		return
+	if not _can_edit_map():
+		_apply_map_ui_from_state()
+		return
+	var mid := map_option.get_item_id(index)
+	GameState.set_map_id(mid)
+	map_desc_label.text = Arena.map_desc(mid)
+	_broadcast_map_settings()
+
+
+func _on_seed_changed(new_text: String) -> void:
+	if _suppress_map_signals:
+		return
+	if not _can_edit_map():
+		return
+	GameState.set_seed_input(new_text)
+	_broadcast_map_settings()
+
+
+func _can_edit_map() -> bool:
+	if _dedicated:
+		return false
+	if Net.is_online() and Net.is_client:
+		return false
+	return true
+
+
+func _broadcast_map_settings() -> void:
+	if not Net.is_authority():
+		return
+	if not Net.is_online():
+		return
+	_rpc_sync_map_settings.rpc(GameState.map_id, GameState.seed_input)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_sync_map_settings(p_map_id: int, p_seed_input: String) -> void:
+	GameState.map_id = Arena.clamp_map_id(p_map_id)
+	GameState.seed_input = p_seed_input
+	GameState.soft_seed = -1
+	_apply_map_ui_from_state()
+	if Net.is_client:
+		_set_map_controls_editable(false)
 
 
 func _was_cmdline_server() -> bool:
@@ -78,10 +167,12 @@ func _on_host_pressed() -> void:
 	_dedicated = false
 	GameState.reset_lobby()
 	GameState.register_local_as_host()
+	_read_map_from_ui()
 	status_label.text = "房间已创建（主机也是玩家）。等待同事加入…"
 	host_btn.disabled = true
 	join_btn.disabled = true
 	start_btn.disabled = false
+	_set_map_controls_editable(true)
 	_refresh_players()
 
 
@@ -96,6 +187,7 @@ func _on_join_pressed() -> void:
 	status_label.text = "正在连接…"
 	host_btn.disabled = true
 	join_btn.disabled = true
+	_set_map_controls_editable(false)
 
 
 func _on_solo_pressed() -> void:
@@ -105,8 +197,19 @@ func _on_solo_pressed() -> void:
 	Net.close()
 	GameState.reset_lobby()
 	GameState.players[1] = {"name": GameState.local_player_name, "color_idx": 0}
+	_read_map_from_ui()
+	GameState.resolve_soft_seed()
 	status_label.text = "单机测试：仅 1 名玩家，无 AI。进入对局…"
 	_go_to_game()
+
+
+func _read_map_from_ui() -> void:
+	var idx := map_option.selected
+	if idx < 0:
+		idx = 0
+	GameState.map_id = Arena.clamp_map_id(map_option.get_item_id(idx))
+	GameState.seed_input = seed_edit.text
+	GameState.soft_seed = -1
 
 
 func _on_start_pressed() -> void:
@@ -129,7 +232,12 @@ func _try_start_match() -> void:
 		return
 	if count == 1:
 		status_label.text = "仅 1 人开局（空场测试，无 AI）"
-	_rpc_start_match.rpc(GameState.players)
+	_read_map_from_ui()
+	var mid := Arena.clamp_map_id(GameState.map_id)
+	var seed := GameState.resolve_soft_seed()
+	GameState.map_id = mid
+	GameState.soft_seed = seed
+	_rpc_start_match.rpc(GameState.players, mid, seed)
 
 
 @rpc("any_peer", "reliable")
@@ -142,8 +250,13 @@ func _rpc_request_start() -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_start_match(snapshot: Dictionary) -> void:
+func _rpc_start_match(snapshot: Dictionary, p_map_id: int = 0, p_soft_seed: int = -1) -> void:
 	GameState.players = snapshot.duplicate(true)
+	GameState.map_id = Arena.clamp_map_id(p_map_id)
+	if p_soft_seed >= 0:
+		GameState.soft_seed = p_soft_seed
+	else:
+		GameState.resolve_soft_seed()
 	GameState.in_match = true
 	GameState.match_starting.emit()
 	_go_to_game()
@@ -163,12 +276,14 @@ func _on_connected() -> void:
 	# Client can request start when enough players
 	start_btn.disabled = false
 	start_btn.text = "请求开始对局"
+	_set_map_controls_editable(false)
 
 
 func _on_fail() -> void:
 	status_label.text = "连接失败，请检查地址/端口"
 	host_btn.disabled = false
 	join_btn.disabled = false
+	_set_map_controls_editable(true)
 
 
 func _on_disc() -> void:
@@ -178,6 +293,7 @@ func _on_disc() -> void:
 	start_btn.disabled = true
 	start_btn.text = "开始对局"
 	GameState.reset_lobby()
+	_set_map_controls_editable(true)
 	_refresh_players()
 
 
@@ -215,6 +331,7 @@ func _rpc_register_player(player_name: String) -> void:
 		"color_idx": color_idx % GameState.MAX_PLAYERS,
 	}
 	_rpc_sync_players.rpc(GameState.players)
+	_rpc_sync_map_settings.rpc(GameState.map_id, GameState.seed_input)
 	_update_start_enabled()
 	_maybe_autostart_dedicated()
 

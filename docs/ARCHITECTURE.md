@@ -65,10 +65,17 @@ autoload Net / GameState   ← 仅连接与大厅快照
 
 ## 已有 match 模块
 
-- `Arena` — 13×11 空图、软墙、四角出生点
+- `Arena` — 13×11 多地图硬墙布局 + 软墙种子。`MapId`：经典 / 开阔 / 十字 / 迷宫；`build_base_grid` / `build_match_grid(map_id, soft_seed)`；同 `map_id+soft_seed` 软墙一致；四角出生及正交邻格永不硬墙/软墙
 - `BlastRules` — 爆炸射线、软墙清除打包。`compute_rays(..., pierce=false)`：软墙被命中并清除；未穿透时射线停在软墙，穿透时继续，直到射程用尽或碰到硬墙。硬墙始终挡住射线，格子本身不被命中
 - `SuddenDeath` — 90s 后缩圈致死格。各端只前进 `elapsed` 做倒计时；致死格只由主机 `tick` 扩展
 - `KickRules` — 穿弹 / 踢弹判定、滑行阻挡。踢进已有火圈由 `game_root` 立即引爆，走进这场爆炸的人会阵亡；缩圈盖住的炸弹被吞掉，不额外爆炸
+
+## 地图与种子
+
+- 大厅主机可选地图（OptionButton）与软墙种子（空/非数字=开局随机；整数=固定）
+- 开局权威端 `GameState.resolve_soft_seed()`，经 `_rpc_start_match` / `_rpc_setup_match(seed, players, map_id)` 同步
+- 再来一局：保留 `map_id`，重新随机 `soft_seed`
+- 客机大厅地图/种子只读，由主机 `_rpc_sync_map_settings` 同步
 
 ## 道具
 

@@ -27,10 +27,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -280.0
-offset_top = -260.0
-offset_right = 280.0
-offset_bottom = 260.0
+offset_left = -300.0
+offset_top = -340.0
+offset_right = 300.0
+offset_bottom = 340.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -100,6 +100,41 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "127.0.0.1:9080"
 placeholder_text = "127.0.0.1:9080"
+
+[node name="MapRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="MapLabel" type="Label" parent="Panel/Margin/VBox/MapRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "地图"
+
+[node name="MapOption" type="OptionButton" parent="Panel/Margin/VBox/MapRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MapDescLabel" type="Label" parent="Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.7, 0.8, 1)
+autowrap_mode = 3
+text = "标准柱阵，攻守均衡"
+
+[node name="SeedRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="SeedLabel" type="Label" parent="Panel/Margin/VBox/SeedRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "软墙种子"
+
+[node name="SeedEdit" type="LineEdit" parent="Panel/Margin/VBox/SeedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "空=随机；整数=固定"
+text = ""
 
 [node name="BtnRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
 layout_mode = 2

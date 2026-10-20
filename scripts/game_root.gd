@@ -1,11 +1,11 @@
 extends Node2D
 ## Authority-side match simulation + client visuals.
-## Grid: 13×11, hard walls on odd-odd, soft walls random, 4 corner spawns.
+## Grid: 13×11, selectable Arena layouts, soft walls by seed, 4 corner spawns.
 ## Power-ups: Bomb+ / Range+ / Speed+ / Kick / Pierce from soft walls.
 ##
 ## See BlastRules for blast/chain/powerup destruction rules.
 ## See SuddenDeath for shrinking lethal zone.
-## See KickRules for bomb-pass / kick. See Arena for the 13×11 layout.
+## See KickRules for bomb-pass / kick. See Arena for layouts + soft seed.
 
 const TILE := 48
 const COLS := 13
@@ -43,6 +43,7 @@ enum PKind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3, PIERCE = 4 }
 ## grid[y][x] -> Cell
 var grid: Array = []
 var soft_seed: int = 0
+var map_id: int = 0
 ## peer_id -> player node
 var player_nodes: Dictionary = {}
 ## bomb_id -> {x,y,owner,timer,range,pierce,solid,slide_dx,slide_dy,slide_cd}
@@ -80,13 +81,17 @@ func _ready() -> void:
 		sd_label.visible = false
 	if help_label:
 		help_label.text = "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹 / 黄P穿透"
-	grid = Arena.empty_grid()
+	map_id = Arena.clamp_map_id(GameState.map_id)
+	grid = Arena.build_base_grid(map_id)
 	if Net.is_authority():
-		soft_seed = randi()
+		map_id = Arena.clamp_map_id(GameState.map_id)
+		soft_seed = GameState.resolve_soft_seed()
+		GameState.map_id = map_id
+		GameState.soft_seed = soft_seed
 		if Net.is_online():
-			_rpc_setup_match.rpc(soft_seed, GameState.players)
+			_rpc_setup_match.rpc(soft_seed, GameState.players, map_id)
 		else:
-			_rpc_setup_match(soft_seed, GameState.players)
+			_rpc_setup_match(soft_seed, GameState.players, map_id)
 	else:
 		status_label.text = "等待主机同步地图…"
 	_refresh_stats_hud()
@@ -173,9 +178,12 @@ func _init_all_stats() -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_setup_match(seed: int, players_snap: Dictionary) -> void:
+func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) -> void:
 	GameState.players = players_snap.duplicate(true)
 	soft_seed = seed
+	map_id = Arena.clamp_map_id(p_map_id)
+	GameState.map_id = map_id
+	GameState.soft_seed = soft_seed
 	match_over = false
 	end_panel.visible = false
 	spec_label.visible = false
@@ -188,15 +196,15 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary) -> void:
 	next_powerup_id = 1
 	_sd_hud_key = ""
 	_clock_sync_wait = 0.0
-	grid = Arena.empty_grid()
-	Arena.place_soft_walls(grid, soft_seed)
+	grid = Arena.build_match_grid(map_id, soft_seed)
 	_init_all_stats()
 	_draw_map()
 	_spawn_all_players()
+	var map_label := Arena.map_name(map_id)
 	if not Net.is_authority():
-		status_label.text = "对局进行中"
+		status_label.text = "对局进行中 · 地图：%s" % map_label
 	else:
-		status_label.text = "对局进行中（主机权威）"
+		status_label.text = "对局进行中（主机权威）· 地图：%s" % map_label
 	for id in GameState.players.keys():
 		alive[id] = true
 	_refresh_stats_hud()
@@ -1085,7 +1093,11 @@ func _restart_match() -> void:
 		return
 	if GameState.players.is_empty():
 		return
-	soft_seed = randi()
+	# Keep map_id; rematch always rolls a new soft_seed.
+	map_id = Arena.clamp_map_id(map_id if map_id >= 0 else GameState.map_id)
+	soft_seed = randi() & 0x7fffffff
+	GameState.map_id = map_id
+	GameState.soft_seed = soft_seed
 	bombs.clear()
 	next_bomb_id = 1
 	next_powerup_id = 1
@@ -1095,10 +1107,10 @@ func _restart_match() -> void:
 	_clear_bomb_visuals()
 	_init_all_stats()
 	if Net.is_online():
-		_rpc_setup_match.rpc(soft_seed, GameState.players)
+		_rpc_setup_match.rpc(soft_seed, GameState.players, map_id)
 	else:
-		_rpc_setup_match(soft_seed, GameState.players)
-	status_label.text = "再来一局！"
+		_rpc_setup_match(soft_seed, GameState.players, map_id)
+	status_label.text = "再来一局 · 地图：%s" % Arena.map_name(map_id)
 
 
 func _on_back() -> void:

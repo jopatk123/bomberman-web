@@ -70,12 +70,18 @@ autoload Net / GameState   ← 仅连接与大厅快照
 - `SuddenDeath` — 90s 后缩圈致死格。各端只前进 `elapsed` 做倒计时；致死格只由主机 `tick` 扩展
 - `KickRules` — 穿弹 / 踢弹判定、滑行阻挡。踢进已有火圈由 `game_root` 立即引爆，走进这场爆炸的人会阵亡；缩圈盖住的炸弹被吞掉，不额外爆炸
 
-## 地图与种子
+## 大厅 / 房间
 
-- 大厅主机可选地图（OptionButton）与软墙种子（空/非数字=开局随机；整数=固定）
-- 开局权威端 `GameState.resolve_soft_seed()`，经 `_rpc_start_match` / `_rpc_setup_match(seed, players, map_id)` 同步
-- 再来一局：保留 `map_id`，重新随机 `soft_seed`
-- 客机大厅地图/种子只读，由主机 `_rpc_sync_map_settings` 同步
+全局只有一间房（专用服或本机听服），没有房间列表。
+
+- 界面在 `scenes/lobby.tscn` + `scripts/lobby.gd`：登录页（昵称、进入房间、单机试试、高级里的端口/地址）和等待房间（准备、房主开始、离开、密码、地图）
+- 房间快照在 `GameState`：`players[*].ready`、`host_peer_id`、`room_password`、`map_id`、`seed_input`、`soft_seed`、`in_match`
+- 同步仍走 `GameState._rpc_sync_players`。快照是带 `players` 字段的字典；旧的「纯玩家字典」仍能被 `apply_snapshot` 读入
+- 房主是 `players` 里最小的 peer id。专用服进程是 peer 1，但自己不占玩家位；有人离开就重算房主
+- 地图和软墙种子只有房主能改，经 `GameState._rpc_sync_map_settings` 写到权威端再广播。种子空或非数字时，开局由 `resolve_soft_seed()` 随机；整数则固定。再来一局保留 `map_id`，重新随机 `soft_seed`
+- 登记被拒（对局中、密码错、已满 4 人）会 RPC 回客户端并显示原因，不会停在「登记中」
+- 开始条件：房主操作，且至少 2 人、全员已准备。没有满员自动开局
+- 这些 RPC 放在 `GameState` 自动加载上，这样专用服切到对局场景后，新连接仍能被拒绝。`scripts/match/` 里仍然禁止 `@rpc` 和房间状态
 
 ## 道具
 

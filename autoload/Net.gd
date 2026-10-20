@@ -113,6 +113,27 @@ func close() -> void:
 	is_client = false
 
 
+## Cmdline `--server` / `--dedicated`. The listen-server player is not this.
+func is_dedicated() -> bool:
+	if not is_server:
+		return false
+	for a in OS.get_cmdline_user_args():
+		if a == "--server" or a == "--dedicated":
+			return true
+	return false
+
+
+## Drop a client. Peer 1 is the server itself and is never kicked.
+func disconnect_peer(peer_id: int) -> void:
+	if peer == null or not is_server:
+		return
+	if peer_id <= 1:
+		return
+	if not multiplayer.get_peers().has(peer_id):
+		return
+	peer.disconnect_peer(peer_id)
+
+
 func get_peer_id() -> int:
 	if multiplayer.multiplayer_peer == null:
 		return 0

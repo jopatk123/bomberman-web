@@ -1,7 +1,7 @@
 extends Node2D
 ## Authority-side match simulation + client visuals.
 ## Grid: 13×11, hard walls on odd-odd, soft walls random, 4 corner spawns.
-## Power-ups: Bomb+ / Range+ / Speed+ / Kick from soft walls.
+## Power-ups: Bomb+ / Range+ / Speed+ / Kick / Pierce from soft walls.
 ##
 ## See BlastRules for blast/chain/powerup destruction rules.
 ## See SuddenDeath for shrinking lethal zone.
@@ -22,7 +22,7 @@ const KICK_SLIDE_INTERVAL := 0.07
 const SPEED_COOLDOWNS := [0.14, 0.115, 0.095, 0.078, 0.062]
 
 enum Cell { EMPTY = 0, HARD = 1, SOFT = 2 }
-enum PKind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3 }
+enum PKind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3, PIERCE = 4 }
 
 @onready var map_layer: Node2D = $Map
 @onready var entities: Node2D = $Entities
@@ -45,13 +45,13 @@ var grid: Array = []
 var soft_seed: int = 0
 ## peer_id -> player node
 var player_nodes: Dictionary = {}
-## bomb_id -> {x,y,owner,timer,range,solid,slide_dx,slide_dy,slide_cd}
+## bomb_id -> {x,y,owner,timer,range,pierce,solid,slide_dx,slide_dy,slide_cd}
 var bombs: Dictionary = {}
 var next_bomb_id: int = 1
 ## powerup_id -> {x,y,kind}
 var powerups: Dictionary = {}
 var next_powerup_id: int = 1
-## peer_id -> {bombs, range, speed, kick, move_cd}
+## peer_id -> {bombs, range, speed, kick, pierce, move_cd}
 var player_stats: Dictionary = {}
 var alive: Dictionary = {} # peer_id -> bool
 var match_over: bool = false
@@ -79,7 +79,7 @@ func _ready() -> void:
 	if sd_label:
 		sd_label.visible = false
 	if help_label:
-		help_label.text = "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹"
+		help_label.text = "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹 / 黄P穿透"
 	grid = Arena.empty_grid()
 	if Net.is_authority():
 		soft_seed = randi()
@@ -163,7 +163,7 @@ func _cooldown_for(peer_id: int) -> float:
 
 
 func _default_stats() -> Dictionary:
-	return {"bombs": BASE_BOMBS, "range": BASE_BLAST, "speed": 0, "kick": 0, "move_cd": 0.0}
+	return {"bombs": BASE_BOMBS, "range": BASE_BLAST, "speed": 0, "kick": 0, "pierce": 0, "move_cd": 0.0}
 
 
 func _init_all_stats() -> void:
@@ -509,27 +509,29 @@ func _try_place_bomb(peer_id: int) -> void:
 		if int(b.x) == cell.x and int(b.y) == cell.y:
 			return
 	var blast: int = clampi(int(st.get("range", BASE_BLAST)), 1, MAX_RANGE)
+	# Snapshot pierce at place time. A later pickup must not change this bomb.
+	var pierce: int = 1 if int(st.get("pierce", 0)) > 0 else 0
 	var bid := next_bomb_id
 	next_bomb_id += 1
 	# solid=false → owner may walk off; becomes solid once they leave
 	bombs[bid] = {
 		"x": cell.x, "y": cell.y, "owner": peer_id,
-		"timer": BOMB_FUSE, "range": blast, "solid": false,
+		"timer": BOMB_FUSE, "range": blast, "pierce": pierce, "solid": false,
 		"slide_dx": 0, "slide_dy": 0, "slide_cd": 0.0,
 	}
 	if Net.is_online():
-		_rpc_spawn_bomb.rpc(bid, cell.x, cell.y, peer_id, blast)
+		_rpc_spawn_bomb.rpc(bid, cell.x, cell.y, peer_id, blast, pierce)
 	else:
 		_spawn_bomb_visual(bid, cell)
 	_refresh_stats_hud()
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_spawn_bomb(bid: int, x: int, y: int, owner: int, blast: int = BASE_BLAST) -> void:
+func _rpc_spawn_bomb(bid: int, x: int, y: int, owner: int, blast: int = BASE_BLAST, pierce: int = 0) -> void:
 	if not Net.is_authority():
 		bombs[bid] = {
 			"x": x, "y": y, "owner": owner,
-			"timer": BOMB_FUSE, "range": blast, "solid": false,
+			"timer": BOMB_FUSE, "range": blast, "pierce": pierce, "solid": false,
 			"slide_dx": 0, "slide_dy": 0, "slide_cd": 0.0,
 		}
 	_spawn_bomb_visual(bid, Vector2i(x, y))
@@ -570,8 +572,9 @@ func _explode(bid: int) -> void:
 	var bx: int = int(bombs[bid].x)
 	var by: int = int(bombs[bid].y)
 	var blast: int = clampi(int(bombs[bid].get("range", BASE_BLAST)), 1, MAX_RANGE)
+	var pierce: bool = int(bombs[bid].get("pierce", 0)) > 0
 	bombs.erase(bid)
-	var computed := BlastRules.compute_rays(grid, Vector2i(bx, by), blast, COLS, ROWS)
+	var computed := BlastRules.compute_rays(grid, Vector2i(bx, by), blast, COLS, ROWS, pierce)
 	var hit_cells: Array[Vector2i] = computed.hit
 	_blast_hits.append_array(hit_cells)
 	var cleared_soft: Array[Vector2i] = computed.cleared_soft
@@ -594,7 +597,7 @@ func _explode(bid: int) -> void:
 				continue
 			if sudden.is_lethal(c):
 				continue
-			var kind: int = rng.randi_range(0, 3) # BOMB / RANGE / SPEED / KICK
+			var kind: int = rng.randi_range(0, PKind.PIERCE) # BOMB / RANGE / SPEED / KICK / PIERCE
 			var pid := next_powerup_id
 			next_powerup_id += 1
 			powerups[pid] = {"x": c.x, "y": c.y, "kind": kind}
@@ -773,6 +776,7 @@ func _stats_pack(peer_id: int) -> PackedInt32Array:
 		int(st.get("range", BASE_BLAST)),
 		int(st.get("speed", 0)),
 		int(st.get("kick", 0)),
+		int(st.get("pierce", 0)),
 	])
 
 
@@ -789,27 +793,35 @@ func _apply_powerup(peer_id: int, kind: int) -> void:
 			st.speed = mini(int(st.get("speed", 0)) + 1, MAX_SPEED_LVL)
 		PKind.KICK:
 			st.kick = 1
+		PKind.PIERCE:
+			st.pierce = 1
 	player_stats[peer_id] = st
 
 
 @rpc("authority", "call_local", "reliable")
 func _rpc_pickup(peer_id: int, powerup_id: int, kind: int, stats: PackedInt32Array) -> void:
 	_remove_powerup(powerup_id)
+	var prev: Dictionary = player_stats.get(peer_id, {})
 	if stats.size() >= 4:
+		var pierce := int(prev.get("pierce", 0))
+		if stats.size() >= 5:
+			pierce = int(stats[4])
 		player_stats[peer_id] = {
 			"bombs": stats[0],
 			"range": stats[1],
 			"speed": stats[2],
 			"kick": stats[3],
-			"move_cd": float(player_stats.get(peer_id, {}).get("move_cd", 0.0)),
+			"pierce": pierce,
+			"move_cd": float(prev.get("move_cd", 0.0)),
 		}
 	elif stats.size() >= 3:
 		player_stats[peer_id] = {
 			"bombs": stats[0],
 			"range": stats[1],
 			"speed": stats[2],
-			"kick": int(player_stats.get(peer_id, {}).get("kick", 0)),
-			"move_cd": float(player_stats.get(peer_id, {}).get("move_cd", 0.0)),
+			"kick": int(prev.get("kick", 0)),
+			"pierce": int(prev.get("pierce", 0)),
+			"move_cd": float(prev.get("move_cd", 0.0)),
 		}
 	else:
 		_apply_powerup(peer_id, kind)
@@ -1110,9 +1122,11 @@ func _refresh_stats_hud() -> void:
 	var r: int = int(st.get("range", BASE_BLAST))
 	var s: int = int(st.get("speed", 0))
 	var k: int = int(st.get("kick", 0))
+	var p: int = int(st.get("pierce", 0))
 	var placed := _count_bombs_owned(my_id)
 	var kick_txt := "开" if k > 0 else "关"
-	stats_label.text = "炸弹 %d/%d  ·  火力 %d  ·  移速 Lv%d  ·  踢弹 %s" % [placed, b, r, s, kick_txt]
+	var pierce_txt := "开" if p > 0 else "关"
+	stats_label.text = "炸弹 %d/%d  ·  火力 %d  ·  移速 Lv%d  ·  踢弹 %s  ·  穿透 %s" % [placed, b, r, s, kick_txt, pierce_txt]
 
 
 func _refresh_spectator_hud() -> void:

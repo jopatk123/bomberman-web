@@ -4,8 +4,9 @@ extends RefCounted
 ##
 ## RULES (documented + enforced by compute_rays):
 ## 1. Blast travels orthogonally up to `blast_range` cells from the bomb center.
-## 2. HARD wall: ray STOPS; cell is NOT hit (no pierce).
-## 3. SOFT wall: cell IS hit, soft is destroyed, ray STOPS (no pierce unless later).
+## 2. HARD wall: ray STOPS; cell is NOT hit. Pierce never passes a hard wall.
+## 3. SOFT wall: cell IS hit, soft is destroyed. Without pierce the ray STOPS.
+##    With pierce the ray CONTINUES through that soft, up to `blast_range`.
 ## 4. EMPTY: cell is hit; ray continues.
 ## 5. Chain: any other bomb whose cell is in hit_cells detonates (caller recurses).
 ## 6. Powerups sitting in hit cells are destroyed by the caller, EXCEPT powerups
@@ -19,12 +20,14 @@ const CELL_SOFT := 2
 
 
 ## Returns { "hit": Array[Vector2i], "cleared_soft": Array[Vector2i] }
+## `pierce` defaults to false so existing callers keep "soft stops the ray".
 static func compute_rays(
 	grid: Array,
 	origin: Vector2i,
 	blast_range: int,
 	cols: int,
-	rows: int
+	rows: int,
+	pierce: bool = false
 ) -> Dictionary:
 	var hit: Array[Vector2i] = [origin]
 	var cleared: Array[Vector2i] = []
@@ -42,7 +45,8 @@ static func compute_rays(
 			hit.append(c)
 			if t == CELL_SOFT:
 				cleared.append(c)
-				break
+				if not pierce:
+					break
 	return {"hit": hit, "cleared_soft": cleared}
 
 

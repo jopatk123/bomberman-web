@@ -20,166 +20,256 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.08, 0.09, 0.14, 1)
 
-[node name="Panel" type="PanelContainer" parent="."]
+[node name="Center" type="CenterContainer" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = -340.0
-offset_right = 300.0
-offset_bottom = 340.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Margin" type="MarginContainer" parent="Panel"]
+[node name="Panel" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(480, 0)
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="Center/Panel"]
 layout_mode = 2
 theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 20
+theme_override_constants/margin_top = 18
 theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 20
+theme_override_constants/margin_bottom = 18
 
-[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+[node name="Stack" type="VBoxContainer" parent="Center/Panel/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="Title" type="Label" parent="Panel/Margin/VBox"]
+[node name="Title" type="Label" parent="Center/Panel/Margin/Stack"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 30
 text = "摸鱼炸弹人"
 horizontal_alignment = 1
 
-[node name="Subtitle" type="Label" parent="Panel/Margin/VBox"]
+[node name="Subtitle" type="Label" parent="Center/Panel/Margin/Stack"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
-text = "WebSocket 联机 · 浏览器友好"
+text = "同一间房，准备好再开"
 horizontal_alignment = 1
 
-[node name="NameRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="LoginBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack"]
+unique_name_in_owner = true
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="NameLabel" type="Label" parent="Panel/Margin/VBox/NameRow"]
+[node name="NameRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
 layout_mode = 2
-size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="NameLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/NameRow"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
 text = "昵称"
 
-[node name="NameEdit" type="LineEdit" parent="Panel/Margin/VBox/NameRow"]
+[node name="NameEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/NameRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "摸鱼人"
-text = "摸鱼人"
+max_length = 16
 
-[node name="PortRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="PwRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="PortLabel" type="Label" parent="Panel/Margin/VBox/PortRow"]
+[node name="PwLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/PwRow"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+text = "房间密码"
+
+[node name="JoinPasswordEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/PwRow"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+placeholder_text = "没有就留空"
+max_length = 32
+
+[node name="EnterBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "进入房间"
+
+[node name="SoloBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "单机试试"
+
+[node name="HostBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "本机开房"
+
+[node name="AdvancedBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "高级"
+
+[node name="AdvancedBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="WebHint" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/AdvancedBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+text = "将连接本站游戏服"
+autowrap_mode = 3
+
+[node name="PortRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/AdvancedBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PortLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/AdvancedBox/PortRow"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
 text = "主机端口"
 
-[node name="PortEdit" type="LineEdit" parent="Panel/Margin/VBox/PortRow"]
+[node name="PortEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/AdvancedBox/PortRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "9080"
 
-[node name="AddrRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="AddrRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/AdvancedBox"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="AddrLabel" type="Label" parent="Panel/Margin/VBox/AddrRow"]
+[node name="AddrLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/AdvancedBox/AddrRow"]
+custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 text = "加入地址"
 
-[node name="AddressEdit" type="LineEdit" parent="Panel/Margin/VBox/AddrRow"]
+[node name="AddressEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/AdvancedBox/AddrRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "127.0.0.1:9080"
 placeholder_text = "127.0.0.1:9080"
 
-[node name="MapRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="LoginStatus" type="Label" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
 layout_mode = 2
+autowrap_mode = 3
+text = "填写昵称进入房间，或本机开房"
 
-[node name="MapLabel" type="Label" parent="Panel/Margin/VBox/MapRow"]
+[node name="RoomBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RoomStatus" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "等待中 0/4"
+horizontal_alignment = 1
+
+[node name="ServerNote" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+text = "专用服务器运行中。房主由玩家中最小编号担任。"
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="RoomPwRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RoomPwLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/RoomPwRow"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+text = "房间密码"
+
+[node name="RoomPasswordEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/RoomBox/RoomPwRow"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+placeholder_text = "空为公开房"
+max_length = 32
+
+[node name="RoomAccess" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/RoomPwRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "公开房"
+
+[node name="MapRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MapLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/MapRow"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
 text = "地图"
 
-[node name="MapOption" type="OptionButton" parent="Panel/Margin/VBox/MapRow"]
+[node name="MapOption" type="OptionButton" parent="Center/Panel/Margin/Stack/RoomBox/MapRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MapDescLabel" type="Label" parent="Panel/Margin/VBox"]
+[node name="MapDescLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.7, 0.8, 1)
 autowrap_mode = 3
 text = "标准柱阵，攻守均衡"
 
-[node name="SeedRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="SeedRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="SeedLabel" type="Label" parent="Panel/Margin/VBox/SeedRow"]
+[node name="SeedLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/SeedRow"]
+custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 text = "软墙种子"
 
-[node name="SeedEdit" type="LineEdit" parent="Panel/Margin/VBox/SeedRow"]
+[node name="SeedEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/RoomBox/SeedRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "空=随机；整数=固定"
-text = ""
 
-[node name="BtnRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="MapHint" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+text = "只有房主能改地图、种子和密码"
+autowrap_mode = 3
 
-[node name="HostBtn" type="Button" parent="Panel/Margin/VBox/BtnRow"]
+[node name="PlayersTitle" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+layout_mode = 2
+text = "房间玩家"
+
+[node name="PlayerList" type="VBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-text = "创建房间"
+theme_override_constants/separation = 4
 
-[node name="JoinBtn" type="Button" parent="Panel/Margin/VBox/BtnRow"]
+[node name="ReadyBtn" type="Button" parent="Center/Panel/Margin/Stack/RoomBox"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-text = "加入"
+text = "准备"
 
-[node name="SoloBtn" type="Button" parent="Panel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "单机测试（无 AI）"
-
-[node name="StartBtn" type="Button" parent="Panel/Margin/VBox"]
+[node name="StartBtn" type="Button" parent="Center/Panel/Margin/Stack/RoomBox"]
 unique_name_in_owner = true
 layout_mode = 2
 disabled = true
 text = "开始对局"
 
-[node name="StatusLabel" type="Label" parent="Panel/Margin/VBox"]
+[node name="LeaveBtn" type="Button" parent="Center/Panel/Margin/Stack/RoomBox"]
 unique_name_in_owner = true
 layout_mode = 2
-autowrap_mode = 3
-text = "提示：浏览器端请用 WebSocket；本地可开两个窗口互测。"
-
-[node name="PlayersTitle" type="Label" parent="Panel/Margin/VBox"]
-layout_mode = 2
-text = "房间玩家"
-
-[node name="PlayersLabel" type="Label" parent="Panel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-autowrap_mode = 3
-text = "（暂无玩家）"
-
-[connection signal="pressed" from="Panel/Margin/VBox/BtnRow/HostBtn" to="." method="_on_host_pressed"]
-[connection signal="pressed" from="Panel/Margin/VBox/BtnRow/JoinBtn" to="." method="_on_join_pressed"]
-[connection signal="pressed" from="Panel/Margin/VBox/SoloBtn" to="." method="_on_solo_pressed"]
-[connection signal="pressed" from="Panel/Margin/VBox/StartBtn" to="." method="_on_start_pressed"]
+text = "离开房间"

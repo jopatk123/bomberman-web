@@ -1,143 +1,136 @@
 extends Control
-## Lobby: create/join WebSocket room, pick map/seed, start match.
+## Login + waiting room. One global session; room rules/RPCs live on GameState.
 
+const _NICK_PATH := "user://nickname.txt"
+const _NICK_LS := "bomberman_nickname"
+
+@onready var subtitle: Label = %Subtitle
+@onready var login_box: VBoxContainer = %LoginBox
 @onready var name_edit: LineEdit = %NameEdit
+@onready var join_password_edit: LineEdit = %JoinPasswordEdit
 @onready var port_edit: LineEdit = %PortEdit
 @onready var address_edit: LineEdit = %AddressEdit
-@onready var status_label: Label = %StatusLabel
-@onready var players_label: Label = %PlayersLabel
+@onready var port_row: HBoxContainer = %PortRow
+@onready var advanced_box: VBoxContainer = %AdvancedBox
+@onready var advanced_btn: Button = %AdvancedBtn
+@onready var web_hint: Label = %WebHint
 @onready var host_btn: Button = %HostBtn
-@onready var join_btn: Button = %JoinBtn
-@onready var start_btn: Button = %StartBtn
+@onready var enter_btn: Button = %EnterBtn
 @onready var solo_btn: Button = %SoloBtn
+@onready var login_status: Label = %LoginStatus
+@onready var room_box: VBoxContainer = %RoomBox
+@onready var room_status: Label = %RoomStatus
+@onready var server_note: Label = %ServerNote
+@onready var room_password_edit: LineEdit = %RoomPasswordEdit
+@onready var room_access: Label = %RoomAccess
 @onready var map_option: OptionButton = %MapOption
 @onready var map_desc_label: Label = %MapDescLabel
 @onready var seed_edit: LineEdit = %SeedEdit
+@onready var player_list: VBoxContainer = %PlayerList
+@onready var ready_btn: Button = %ReadyBtn
+@onready var start_btn: Button = %StartBtn
+@onready var leave_btn: Button = %LeaveBtn
 
-var _dedicated: bool = false
-var _suppress_map_signals: bool = false
+var _web := false
+var _updating_ui := false
+var _ui_lock := false
+var _pending_register := false
+var _shown_close := false
+var _register_timer: Timer
 
 
 func _ready() -> void:
-	name_edit.text = GameState.local_player_name
+	_web = OS.has_feature("web")
+	_setup_maps()
+	_load_nickname_into_field()
 	port_edit.text = str(Net.DEFAULT_PORT)
 	address_edit.text = Net.get_default_join_address()
-	start_btn.disabled = true
-	_fill_map_options()
-	_apply_map_ui_from_state()
-	_connect_map_signals()
+	advanced_box.visible = false
+	_apply_platform_chrome()
+	_connect_controls()
 	_connect_net_signals()
-	GameState.player_list_changed.connect(_refresh_players)
-	_dedicated = Net.is_server and _was_cmdline_server()
-	# Browser cannot host a dedicated listen-server usefully; Hangzhou runs the server.
-	if OS.has_feature("web"):
-		host_btn.visible = false
-		port_edit.editable = false
-		status_label.text = "网页版：填写昵称后加入（默认 wss://当前域名/ws）"
+	if not GameState.player_list_changed.is_connected(_on_room_changed):
+		GameState.player_list_changed.connect(_on_room_changed)
+	if not GameState.register_rejected.is_connected(_on_register_rejected):
+		GameState.register_rejected.connect(_on_register_rejected)
+	if not GameState.kicked.is_connected(_on_kicked):
+		GameState.kicked.connect(_on_kicked)
+	if not GameState.match_starting.is_connected(_on_match_starting):
+		GameState.match_starting.connect(_on_match_starting)
+	_enter_initial_screen()
+
+
+func _enter_initial_screen() -> void:
+	if Net.is_dedicated():
+		if GameState.players.is_empty():
+			_ui_lock = true
+			GameState.reset_lobby()
+			_ui_lock = false
+		_show_room()
+		return
 	if Net.is_server:
-		status_label.text = "服务器已在端口 %d 监听。等待客户端…" % Net.listen_port
-		host_btn.disabled = true
-		join_btn.disabled = true
-		solo_btn.disabled = true
-		if _dedicated:
-			# Dedicated: peer 1 is not a playable slot
-			GameState.reset_lobby()
-			start_btn.disabled = true
-			status_label.text = "专用服务器模式：≥2 名客户端加入后自动开局（也可由客户端请求开始）"
-			_set_map_controls_editable(false)
-		else:
-			GameState.reset_lobby()
-			GameState.register_local_as_host()
-			start_btn.disabled = false
-			_set_map_controls_editable(true)
-		_refresh_players()
+		_commit_nickname()
+		_ui_lock = true
+		GameState.reset_lobby()
+		GameState.register_local_as_host()
+		_ui_lock = false
+		_show_room()
+		return
+	_show_login(_default_login_hint())
+
+
+func _default_login_hint() -> String:
+	if _web:
+		return "填写昵称，进入本站房间"
+	return "填写昵称进入房间，或本机开房"
+
+
+func _apply_platform_chrome() -> void:
+	web_hint.visible = _web
+	if _web:
+		host_btn.visible = false
+		port_row.visible = false
+		web_hint.text = "将连接本站游戏服"
 	else:
-		_set_map_controls_editable(true)
+		host_btn.visible = true
+		port_row.visible = true
 
 
-func _fill_map_options() -> void:
+func _setup_maps() -> void:
 	map_option.clear()
 	for id in range(int(Arena.MapId.CLASSIC), int(Arena.MapId.MAZE) + 1):
 		map_option.add_item(Arena.map_name(id), id)
 
 
-func _connect_map_signals() -> void:
+func _connect_controls() -> void:
+	if not enter_btn.pressed.is_connected(_on_enter_pressed):
+		enter_btn.pressed.connect(_on_enter_pressed)
+	if not host_btn.pressed.is_connected(_on_host_pressed):
+		host_btn.pressed.connect(_on_host_pressed)
+	if not solo_btn.pressed.is_connected(_on_solo_pressed):
+		solo_btn.pressed.connect(_on_solo_pressed)
+	if not advanced_btn.pressed.is_connected(_on_advanced_pressed):
+		advanced_btn.pressed.connect(_on_advanced_pressed)
+	if not name_edit.text_submitted.is_connected(_on_name_submitted):
+		name_edit.text_submitted.connect(_on_name_submitted)
+	if not ready_btn.pressed.is_connected(_on_ready_pressed):
+		ready_btn.pressed.connect(_on_ready_pressed)
+	if not start_btn.pressed.is_connected(_on_start_pressed):
+		start_btn.pressed.connect(_on_start_pressed)
+	if not leave_btn.pressed.is_connected(_on_leave_pressed):
+		leave_btn.pressed.connect(_on_leave_pressed)
 	if not map_option.item_selected.is_connected(_on_map_selected):
 		map_option.item_selected.connect(_on_map_selected)
-	if not seed_edit.text_changed.is_connected(_on_seed_changed):
-		seed_edit.text_changed.connect(_on_seed_changed)
-
-
-func _apply_map_ui_from_state() -> void:
-	_suppress_map_signals = true
-	var mid := Arena.clamp_map_id(GameState.map_id)
-	var idx := map_option.get_item_index(mid)
-	if idx >= 0:
-		map_option.select(idx)
-	else:
-		map_option.select(0)
-	seed_edit.text = GameState.seed_input
-	map_desc_label.text = Arena.map_desc(mid)
-	_suppress_map_signals = false
-
-
-func _set_map_controls_editable(editable: bool) -> void:
-	map_option.disabled = not editable
-	seed_edit.editable = editable
-
-
-func _on_map_selected(index: int) -> void:
-	if _suppress_map_signals:
-		return
-	if not _can_edit_map():
-		_apply_map_ui_from_state()
-		return
-	var mid := map_option.get_item_id(index)
-	GameState.set_map_id(mid)
-	map_desc_label.text = Arena.map_desc(mid)
-	_broadcast_map_settings()
-
-
-func _on_seed_changed(new_text: String) -> void:
-	if _suppress_map_signals:
-		return
-	if not _can_edit_map():
-		return
-	GameState.set_seed_input(new_text)
-	_broadcast_map_settings()
-
-
-func _can_edit_map() -> bool:
-	if _dedicated:
-		return false
-	if Net.is_online() and Net.is_client:
-		return false
-	return true
-
-
-func _broadcast_map_settings() -> void:
-	if not Net.is_authority():
-		return
-	if not Net.is_online():
-		return
-	_rpc_sync_map_settings.rpc(GameState.map_id, GameState.seed_input)
-
-
-@rpc("authority", "call_local", "reliable")
-func _rpc_sync_map_settings(p_map_id: int, p_seed_input: String) -> void:
-	GameState.map_id = Arena.clamp_map_id(p_map_id)
-	GameState.seed_input = p_seed_input
-	GameState.soft_seed = -1
-	_apply_map_ui_from_state()
-	if Net.is_client:
-		_set_map_controls_editable(false)
-
-
-func _was_cmdline_server() -> bool:
-	for a in OS.get_cmdline_user_args():
-		if a == "--server" or a == "--dedicated":
-			return true
-	return false
+	if not seed_edit.text_submitted.is_connected(_on_seed_committed):
+		seed_edit.text_submitted.connect(_on_seed_committed)
+	if not seed_edit.focus_exited.is_connected(_on_seed_focus_exited):
+		seed_edit.focus_exited.connect(_on_seed_focus_exited)
+	if not seed_edit.text_changed.is_connected(_on_seed_committed):
+		seed_edit.text_changed.connect(_on_seed_committed)
+	if not room_password_edit.text_submitted.is_connected(_on_room_password_committed):
+		room_password_edit.text_submitted.connect(_on_room_password_committed)
+	if not room_password_edit.focus_exited.is_connected(_on_room_password_focus_exited):
+		room_password_edit.focus_exited.connect(_on_room_password_focus_exited)
 
 
 func _connect_net_signals() -> void:
@@ -145,120 +138,217 @@ func _connect_net_signals() -> void:
 		Net.connected_to_server.connect(_on_connected)
 	if not Net.connection_failed.is_connected(_on_fail):
 		Net.connection_failed.connect(_on_fail)
-	if not Net.peer_connected.is_connected(_on_peer_in):
-		Net.peer_connected.connect(_on_peer_in)
 	if not Net.peer_disconnected.is_connected(_on_peer_out):
 		Net.peer_disconnected.connect(_on_peer_out)
 	if not Net.disconnected.is_connected(_on_disc):
 		Net.disconnected.connect(_on_disc)
-	if not Net.server_started.is_connected(_on_server_started):
-		Net.server_started.connect(_on_server_started)
+
+
+func _on_advanced_pressed() -> void:
+	advanced_box.visible = not advanced_box.visible
+	advanced_btn.text = "收起高级" if advanced_box.visible else "高级"
+
+
+func _on_name_submitted(_text: String) -> void:
+	_on_enter_pressed()
+
+
+func _on_enter_pressed() -> void:
+	_shown_close = false
+	_commit_nickname()
+	_set_login_busy(true)
+	login_status.text = "正在连接…"
+	var err := Net.join(address_edit.text.strip_edges())
+	if err != OK:
+		_set_login_busy(false)
+		login_status.text = "进入失败：%s" % error_string(err)
 
 
 func _on_host_pressed() -> void:
-	GameState.local_player_name = name_edit.text.strip_edges()
-	if GameState.local_player_name.is_empty():
-		GameState.local_player_name = "摸鱼人"
+	_shown_close = false
+	_commit_nickname()
 	var port := int(port_edit.text)
+	if port <= 0 or port > 65535:
+		login_status.text = "端口无效"
+		return
 	var err := Net.host(port)
 	if err != OK:
-		status_label.text = "创建房间失败: %s" % error_string(err)
+		login_status.text = "本机开房失败：%s" % error_string(err)
 		return
-	_dedicated = false
+	_ui_lock = true
 	GameState.reset_lobby()
+	GameState.room_password = join_password_edit.text.strip_edges()
 	GameState.register_local_as_host()
-	_read_map_from_ui()
-	status_label.text = "房间已创建（主机也是玩家）。等待同事加入…"
-	host_btn.disabled = true
-	join_btn.disabled = true
-	start_btn.disabled = false
-	_set_map_controls_editable(true)
-	_refresh_players()
-
-
-func _on_join_pressed() -> void:
-	GameState.local_player_name = name_edit.text.strip_edges()
-	if GameState.local_player_name.is_empty():
-		GameState.local_player_name = "摸鱼人"
-	var err := Net.join(address_edit.text.strip_edges())
-	if err != OK:
-		status_label.text = "加入失败: %s" % error_string(err)
-		return
-	status_label.text = "正在连接…"
-	host_btn.disabled = true
-	join_btn.disabled = true
-	_set_map_controls_editable(false)
+	_ui_lock = false
+	_show_room()
 
 
 func _on_solo_pressed() -> void:
-	GameState.local_player_name = name_edit.text.strip_edges()
-	if GameState.local_player_name.is_empty():
-		GameState.local_player_name = "摸鱼人"
+	_commit_nickname()
 	Net.close()
+	_ui_lock = true
 	GameState.reset_lobby()
-	GameState.players[1] = {"name": GameState.local_player_name, "color_idx": 0}
-	_read_map_from_ui()
+	GameState.players[1] = {
+		"name": GameState.local_player_name,
+		"color_idx": 0,
+		"ready": true,
+	}
+	GameState.host_peer_id = 1
+	GameState.in_match = true
 	GameState.resolve_soft_seed()
-	status_label.text = "单机测试：仅 1 名玩家，无 AI。进入对局…"
+	_ui_lock = false
 	_go_to_game()
 
 
-func _read_map_from_ui() -> void:
-	var idx := map_option.selected
-	if idx < 0:
-		idx = 0
-	GameState.map_id = Arena.clamp_map_id(map_option.get_item_id(idx))
-	GameState.seed_input = seed_edit.text
-	GameState.soft_seed = -1
+func _on_connected() -> void:
+	_pending_register = true
+	login_status.text = "已连接，登记中…"
+	_arm_register_timeout()
+	GameState._rpc_register_player.rpc_id(1, GameState.local_player_name, join_password_edit.text.strip_edges())
+
+
+func _on_fail() -> void:
+	_pending_register = false
+	_stop_register_timer()
+	_set_login_busy(false)
+	_show_login("连接失败，请检查地址或稍后再试")
+
+
+func _on_disc() -> void:
+	if _shown_close or _ui_lock:
+		return
+	if Net.is_server:
+		return
+	_show_closed("与服务器断开")
+
+
+func _on_register_rejected(message: String) -> void:
+	_show_closed(message if not message.is_empty() else "无法进入房间")
+
+
+func _on_kicked(message: String) -> void:
+	_show_closed(message if not message.is_empty() else "你已被请出房间")
+
+
+func _show_closed(message: String) -> void:
+	_pending_register = false
+	_stop_register_timer()
+	_shown_close = true
+	_ui_lock = true
+	if not Net.is_server:
+		Net.close()
+	GameState.reset_lobby()
+	_ui_lock = false
+	_set_login_busy(false)
+	_show_login(message)
+
+
+func _on_peer_out(id: int) -> void:
+	if GameState.in_match:
+		return
+	if Net.is_authority() and GameState.players.has(id):
+		GameState.players.erase(id)
+		GameState.recompute_host()
+		GameState.broadcast_room()
+		return
+	if room_box.visible:
+		_refresh_room()
+
+
+func _on_room_changed() -> void:
+	if _ui_lock:
+		return
+	if Net.is_dedicated():
+		_show_room()
+		return
+	if _local_in_room():
+		_pending_register = false
+		_stop_register_timer()
+		_show_room()
+		return
+	if _pending_register:
+		return
+	if room_box.visible:
+		_show_login("已离开房间")
+
+
+func _on_ready_pressed() -> void:
+	var me := GameState.local_peer_id()
+	if not GameState.players.has(me):
+		return
+	var next := not bool(GameState.players[me].get("ready", false))
+	GameState.submit_ready(next)
 
 
 func _on_start_pressed() -> void:
-	if Net.is_client:
-		_rpc_request_start.rpc_id(1)
-		status_label.text = "已请求主机开始…"
+	if not GameState.is_local_host():
 		return
-	if not Net.is_authority():
-		status_label.text = "只有主机可以开始对局"
+	_push_map_settings()
+	var reason := GameState.start_block_reason()
+	if reason != "":
+		room_status.text = "等待中 %d/%d · %s" % [GameState.players.size(), GameState.MAX_PLAYERS, reason]
 		return
-	_try_start_match()
+	GameState.request_start()
 
 
-func _try_start_match() -> void:
-	if not Net.is_authority():
-		return
-	var count := GameState.players.size()
-	if count < 1:
-		status_label.text = "至少需要 1 名玩家"
-		return
-	if count == 1:
-		status_label.text = "仅 1 人开局（空场测试，无 AI）"
-	_read_map_from_ui()
-	var mid := Arena.clamp_map_id(GameState.map_id)
-	var seed := GameState.resolve_soft_seed()
-	GameState.map_id = mid
-	GameState.soft_seed = seed
-	_rpc_start_match.rpc(GameState.players, mid, seed)
+func _on_leave_pressed() -> void:
+	_pending_register = false
+	_stop_register_timer()
+	_shown_close = true
+	_ui_lock = true
+	Net.close()
+	GameState.reset_lobby()
+	_ui_lock = false
+	_set_login_busy(false)
+	_show_login("已离开房间")
 
 
-@rpc("any_peer", "reliable")
-func _rpc_request_start() -> void:
-	if not Net.is_authority():
-		return
-	if GameState.players.size() < 1:
-		return
-	_try_start_match()
+func _on_map_selected(_index: int) -> void:
+	_push_map_settings()
 
 
-@rpc("authority", "call_local", "reliable")
-func _rpc_start_match(snapshot: Dictionary, p_map_id: int = 0, p_soft_seed: int = -1) -> void:
-	GameState.players = snapshot.duplicate(true)
-	GameState.map_id = Arena.clamp_map_id(p_map_id)
-	if p_soft_seed >= 0:
-		GameState.soft_seed = p_soft_seed
-	else:
-		GameState.resolve_soft_seed()
-	GameState.in_match = true
-	GameState.match_starting.emit()
+func _on_seed_committed(_text: String) -> void:
+	_push_map_settings()
+
+
+func _on_seed_focus_exited() -> void:
+	_push_map_settings()
+
+
+func _on_room_password_committed(_text: String) -> void:
+	_push_password()
+
+
+func _on_room_password_focus_exited() -> void:
+	_push_password()
+
+
+func _push_map_settings() -> void:
+	if _updating_ui or not GameState.is_local_host():
+		return
+	var idx := map_option.selected
+	var next_map := map_option.get_item_id(idx) if idx >= 0 else 0
+	var seed_text := seed_edit.text
+	if next_map == GameState.map_id and seed_text == GameState.seed_input:
+		return
+	GameState.request_map_settings(next_map, seed_text)
+
+
+func _push_password() -> void:
+	if _updating_ui or not GameState.is_local_host():
+		return
+	var pw := room_password_edit.text.strip_edges()
+	if pw == GameState.room_password:
+		return
+	GameState.request_password(pw)
+
+
+func _on_match_starting() -> void:
+	if Net.is_dedicated():
+		_go_to_game()
+		return
+	if Net.is_online() and not GameState.players.has(Net.get_peer_id()):
+		return
 	_go_to_game()
 
 
@@ -266,113 +356,182 @@ func _go_to_game() -> void:
 	get_tree().change_scene_to_file("res://scenes/game.tscn")
 
 
-func _on_server_started(port: int) -> void:
-	status_label.text = "监听端口 %d" % port
+func _show_login(message: String) -> void:
+	login_box.visible = true
+	room_box.visible = false
+	subtitle.visible = true
+	subtitle.text = "同一间房，准备好再开"
+	_set_login_busy(false)
+	if not message.is_empty():
+		login_status.text = message
 
 
-func _on_connected() -> void:
-	status_label.text = "已连接，登记中…"
-	_rpc_register_player.rpc_id(1, GameState.local_player_name)
-	# Client can request start when enough players
-	start_btn.disabled = false
-	start_btn.text = "请求开始对局"
-	_set_map_controls_editable(false)
+func _show_room() -> void:
+	login_box.visible = false
+	room_box.visible = true
+	subtitle.visible = false
+	_refresh_room()
 
 
-func _on_fail() -> void:
-	status_label.text = "连接失败，请检查地址/端口"
-	host_btn.disabled = false
-	join_btn.disabled = false
-	_set_map_controls_editable(true)
+func _set_login_busy(busy: bool) -> void:
+	enter_btn.disabled = busy
+	host_btn.disabled = busy
+	solo_btn.disabled = busy
 
 
-func _on_disc() -> void:
-	status_label.text = "与服务器断开"
-	host_btn.disabled = false
-	join_btn.disabled = false
-	start_btn.disabled = true
-	start_btn.text = "开始对局"
-	GameState.reset_lobby()
-	_set_map_controls_editable(true)
-	_refresh_players()
-
-
-func _on_peer_in(_id: int) -> void:
-	_refresh_players()
-	_update_start_enabled()
-	_maybe_autostart_dedicated()
-
-
-func _on_peer_out(id: int) -> void:
-	if Net.is_authority() and GameState.players.has(id):
-		GameState.players.erase(id)
-		_rpc_sync_players.rpc(GameState.players)
-	_refresh_players()
-	_update_start_enabled()
-
-
-@rpc("any_peer", "reliable")
-func _rpc_register_player(player_name: String) -> void:
-	if not Net.is_authority():
-		return
-	var sender := multiplayer.get_remote_sender_id()
-	if sender == 0:
-		return
-	if GameState.players.size() >= GameState.MAX_PLAYERS and not GameState.players.has(sender):
-		return
-	var used: Array = []
-	for p in GameState.players.values():
-		used.append(int(p.get("color_idx", 0)))
-	var color_idx := 0
-	while color_idx in used and color_idx < GameState.MAX_PLAYERS:
-		color_idx += 1
-	GameState.players[sender] = {
-		"name": player_name if not player_name.is_empty() else ("玩家%d" % sender),
-		"color_idx": color_idx % GameState.MAX_PLAYERS,
-	}
-	_rpc_sync_players.rpc(GameState.players)
-	_rpc_sync_map_settings.rpc(GameState.map_id, GameState.seed_input)
-	_update_start_enabled()
-	_maybe_autostart_dedicated()
-
-
-@rpc("authority", "call_local", "reliable")
-func _rpc_sync_players(snapshot: Dictionary) -> void:
-	GameState.players = snapshot.duplicate(true)
-	_refresh_players()
-	_update_start_enabled()
-
-
-func _maybe_autostart_dedicated() -> void:
-	if not _dedicated or not Net.is_authority():
-		return
-	if GameState.in_match:
-		return
-	if GameState.players.size() >= 2:
-		print("[Lobby] Dedicated auto-start with %d players" % GameState.players.size())
-		_try_start_match()
-
-
-func _update_start_enabled() -> void:
-	if _dedicated:
-		start_btn.disabled = true
-		if GameState.players.size() >= 2:
-			status_label.text = "专用服：已有 %d 人，即将自动开局…" % GameState.players.size()
-		return
-	if Net.is_server:
-		start_btn.disabled = GameState.players.size() < 1
-		if GameState.players.size() >= 2:
-			status_label.text = "已有 %d 人，可以开始对局" % GameState.players.size()
-	elif Net.is_client:
-		start_btn.disabled = false
-
-
-func _refresh_players() -> void:
-	var lines: PackedStringArray = []
-	for id in GameState.get_sorted_peer_ids():
-		var info: Dictionary = GameState.players[id]
-		lines.append("• [%d] %s" % [id, info.get("name", "?")])
-	if lines.is_empty():
-		players_label.text = "（暂无玩家）"
+func _refresh_room() -> void:
+	_updating_ui = true
+	var count := GameState.players.size()
+	var host := GameState.is_local_host()
+	var in_room := _local_in_room()
+	var dedicated := Net.is_dedicated()
+	var base := "等待中 %d/%d" % [count, GameState.MAX_PLAYERS]
+	if dedicated and not in_room:
+		room_status.text = "%s · 专用服务器" % base
+	elif host:
+		var reason := GameState.start_block_reason()
+		room_status.text = base if reason.is_empty() else "%s · %s" % [base, reason]
 	else:
-		players_label.text = "\n".join(lines)
+		room_status.text = "%s · 等待房主开始" % base
+	server_note.visible = dedicated
+	room_access.text = "公开房" if GameState.room_password.is_empty() else "需要密码"
+	var mid := Arena.clamp_map_id(GameState.map_id)
+	var map_idx := map_option.get_item_index(mid)
+	map_option.set_block_signals(true)
+	seed_edit.set_block_signals(true)
+	if map_idx >= 0 and map_option.selected != map_idx:
+		map_option.select(map_idx)
+	map_desc_label.text = Arena.map_desc(mid)
+	map_option.disabled = not host
+	seed_edit.editable = host
+	if not seed_edit.has_focus() and seed_edit.text != GameState.seed_input:
+		seed_edit.text = GameState.seed_input
+	if host:
+		room_password_edit.editable = true
+		room_password_edit.placeholder_text = "空为公开房"
+		if not room_password_edit.has_focus() and room_password_edit.text != GameState.room_password:
+			room_password_edit.text = GameState.room_password
+	else:
+		room_password_edit.editable = false
+		room_password_edit.text = ""
+		room_password_edit.placeholder_text = "房主已设置密码" if not GameState.room_password.is_empty() else "空为公开房"
+	seed_edit.set_block_signals(false)
+	map_option.set_block_signals(false)
+	_rebuild_players()
+	ready_btn.visible = in_room
+	if in_room:
+		var me: Dictionary = GameState.players[GameState.local_peer_id()]
+		ready_btn.text = "取消准备" if bool(me.get("ready", false)) else "准备"
+	start_btn.visible = host
+	start_btn.disabled = GameState.start_block_reason() != ""
+	leave_btn.visible = not dedicated
+	_updating_ui = false
+
+
+func _rebuild_players() -> void:
+	for child in player_list.get_children():
+		player_list.remove_child(child)
+		child.free()
+	var ids := GameState.get_sorted_peer_ids()
+	if ids.is_empty():
+		var empty := Label.new()
+		empty.text = "（还没有人）"
+		player_list.add_child(empty)
+		return
+	var me := GameState.local_peer_id()
+	var host := GameState.is_local_host()
+	for id in ids:
+		var info: Dictionary = GameState.players[id]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		var name_label := Label.new()
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_label.text = str(info.get("name", "玩家"))
+		row.add_child(name_label)
+		if int(id) == GameState.host_peer_id:
+			var host_label := Label.new()
+			host_label.text = "房主"
+			host_label.modulate = Color(1, 0.85, 0.4)
+			row.add_child(host_label)
+		var ready_label := Label.new()
+		var is_ready := bool(info.get("ready", false))
+		ready_label.text = "已准备" if is_ready else "未准备"
+		ready_label.modulate = Color(0.45, 0.9, 0.55) if is_ready else Color(0.7, 0.72, 0.78)
+		row.add_child(ready_label)
+		if host and int(id) != me:
+			var kick := Button.new()
+			kick.text = "请出"
+			kick.pressed.connect(_on_kick_pressed.bind(int(id)))
+			row.add_child(kick)
+		player_list.add_child(row)
+
+
+func _on_kick_pressed(peer_id: int) -> void:
+	GameState.request_kick(peer_id)
+
+
+func _local_in_room() -> bool:
+	var id := GameState.local_peer_id()
+	return id > 0 and GameState.players.has(id)
+
+
+func _commit_nickname() -> void:
+	var nick := name_edit.text.strip_edges()
+	if nick.is_empty():
+		nick = "摸鱼人"
+	if nick.length() > 16:
+		nick = nick.substr(0, 16)
+	GameState.local_player_name = nick
+	_save_nickname(nick)
+
+
+func _load_nickname_into_field() -> void:
+	var saved := _load_saved_nickname()
+	name_edit.text = saved
+	if not saved.is_empty():
+		GameState.local_player_name = saved
+
+
+func _load_saved_nickname() -> String:
+	if _web:
+		var raw = JavaScriptBridge.eval("localStorage.getItem('%s')" % _NICK_LS, true)
+		if raw != null:
+			var from_js := str(raw).strip_edges()
+			if from_js != "" and from_js != "null" and from_js != "undefined":
+				return from_js.substr(0, 16)
+	if FileAccess.file_exists(_NICK_PATH):
+		var file := FileAccess.open(_NICK_PATH, FileAccess.READ)
+		if file:
+			var text := file.get_as_text().strip_edges()
+			file.close()
+			return text.substr(0, 16)
+	return ""
+
+
+func _save_nickname(nick: String) -> void:
+	if _web:
+		JavaScriptBridge.eval("localStorage.setItem('%s', %s);" % [_NICK_LS, JSON.stringify(nick)], true)
+	var file := FileAccess.open(_NICK_PATH, FileAccess.WRITE)
+	if file:
+		file.store_string(nick)
+		file.close()
+
+
+func _arm_register_timeout() -> void:
+	if _register_timer == null:
+		_register_timer = Timer.new()
+		_register_timer.one_shot = true
+		_register_timer.timeout.connect(_on_register_timeout)
+		add_child(_register_timer)
+	_register_timer.start(8.0)
+
+
+func _stop_register_timer() -> void:
+	if _register_timer != null:
+		_register_timer.stop()
+
+
+func _on_register_timeout() -> void:
+	if not _pending_register:
+		return
+	_show_closed("服务器没有回应登记，请稍后再试")

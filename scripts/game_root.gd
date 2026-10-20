@@ -69,6 +69,9 @@ var _sd_hud_key: String = ""
 var _blast_hits: Array[Vector2i] = []
 ## Seconds until the next authority clock sync during the countdown window.
 var _clock_sync_wait: float = 0.0
+## Dedicated server: peer ids that left. When none of the roster remains, go back to the lobby.
+var _gone_peers: Dictionary = {}
+var _left_for_lobby: bool = false
 
 
 func _ready() -> void:
@@ -81,6 +84,12 @@ func _ready() -> void:
 		sd_label.visible = false
 	if help_label:
 		help_label.text = "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹 / 黄P穿透"
+	if Net.is_dedicated():
+		back_btn.visible = false
+		rematch_btn.visible = false
+		lobby_btn.visible = false
+		if not Net.peer_disconnected.is_connected(_on_match_peer_out):
+			Net.peer_disconnected.connect(_on_match_peer_out)
 	map_id = Arena.clamp_map_id(GameState.map_id)
 	grid = Arena.build_base_grid(map_id)
 	if Net.is_authority():
@@ -1114,10 +1123,32 @@ func _restart_match() -> void:
 
 
 func _on_back() -> void:
+	if Net.is_dedicated():
+		return
 	if Net.is_online() and Net.is_client:
 		Net.close()
-	GameState.in_match = false
+		GameState.reset_lobby()
+	else:
+		GameState.in_match = false
 	get_tree().change_scene_to_file("res://scenes/lobby.tscn")
+
+
+func _on_match_peer_out(id: int) -> void:
+	if _left_for_lobby or not Net.is_dedicated():
+		return
+	if not GameState.players.has(id):
+		return
+	_gone_peers[int(id)] = true
+	var left := 0
+	for pid in GameState.players.keys():
+		if not _gone_peers.has(int(pid)):
+			left += 1
+	if left > 0:
+		return
+	_left_for_lobby = true
+	GameState.reset_lobby()
+	print("[Game] Dedicated room empty, returning to waiting room")
+	get_tree().call_deferred("change_scene_to_file", "res://scenes/lobby.tscn")
 
 
 func _refresh_stats_hud() -> void:

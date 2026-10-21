@@ -61,6 +61,7 @@ func _ready() -> void:
 
 
 func _enter_initial_screen() -> void:
+	var notice := GameState.consume_notice()
 	if Net.is_dedicated():
 		if GameState.players.is_empty():
 			_ui_lock = true
@@ -76,7 +77,7 @@ func _enter_initial_screen() -> void:
 		_ui_lock = false
 		_show_room()
 		return
-	_show_login(_default_login_hint())
+	_show_login(notice if not notice.is_empty() else _default_login_hint())
 
 
 func _default_login_hint() -> String:
@@ -244,7 +245,10 @@ func _show_closed(message: String) -> void:
 
 
 func _on_peer_out(id: int) -> void:
-	if GameState.in_match:
+	# Match scene owns the forfeit once it is current. Lobby only drops the roster
+	# while it is still the current scene (including the frame before the swap).
+	var current := get_tree().current_scene
+	if GameState.in_match and current != self:
 		return
 	if Net.is_authority() and GameState.players.has(id):
 		GameState.players.erase(id)

@@ -69,9 +69,10 @@ var _sd_hud_key: String = ""
 var _blast_hits: Array[Vector2i] = []
 ## Seconds until the next authority clock sync during the countdown window.
 var _clock_sync_wait: float = 0.0
-## Dedicated server: peer ids that left. When none of the roster remains, go back to the lobby.
-var _gone_peers: Dictionary = {}
+## Dedicated server already left the match scene for an empty room.
 var _left_for_lobby: bool = false
+## Local player is leaving for the lobby; ignore disconnects caused by our own close().
+var _leaving: bool = false
 
 
 func _ready() -> void:
@@ -88,8 +89,14 @@ func _ready() -> void:
 		back_btn.visible = false
 		rematch_btn.visible = false
 		lobby_btn.visible = false
-		if not Net.peer_disconnected.is_connected(_on_match_peer_out):
-			Net.peer_disconnected.connect(_on_match_peer_out)
+	if not Net.peer_disconnected.is_connected(_on_match_peer_out):
+		Net.peer_disconnected.connect(_on_match_peer_out)
+	if not Net.disconnected.is_connected(_on_net_disconnected):
+		Net.disconnected.connect(_on_net_disconnected)
+	if not GameState.kicked.is_connected(_on_kicked_out):
+		GameState.kicked.connect(_on_kicked_out)
+	if not GameState.player_list_changed.is_connected(_on_roster_changed):
+		GameState.player_list_changed.connect(_on_roster_changed)
 	map_id = Arena.clamp_map_id(GameState.map_id)
 	grid = Arena.build_base_grid(map_id)
 	if Net.is_authority():
@@ -140,13 +147,13 @@ func _poll_local_input() -> void:
 	if not alive.get(my_id, false):
 		return
 	var dir := Vector2i.ZERO
-	if Input.is_action_just_pressed("move_up"):
+	if Input.is_action_pressed("move_up"):
 		dir = Vector2i(0, -1)
-	elif Input.is_action_just_pressed("move_down"):
+	elif Input.is_action_pressed("move_down"):
 		dir = Vector2i(0, 1)
-	elif Input.is_action_just_pressed("move_left"):
+	elif Input.is_action_pressed("move_left"):
 		dir = Vector2i(-1, 0)
-	elif Input.is_action_just_pressed("move_right"):
+	elif Input.is_action_pressed("move_right"):
 		dir = Vector2i(1, 0)
 	if dir != Vector2i.ZERO and _local_move_cd <= 0.0:
 		_local_move_cd = _cooldown_for(my_id)
@@ -205,6 +212,7 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 	next_powerup_id = 1
 	_sd_hud_key = ""
 	_clock_sync_wait = 0.0
+	alive.clear()
 	grid = Arena.build_match_grid(map_id, soft_seed)
 	_init_all_stats()
 	_draw_map()
@@ -307,10 +315,25 @@ func _rpc_request_move(dx: int, dy: int) -> void:
 	var sender := multiplayer.get_remote_sender_id()
 	if sender == 0:
 		sender = multiplayer.get_unique_id()
-	_apply_move(sender, dx, dy)
+	var step := _unit_step(dx, dy)
+	if step == Vector2i.ZERO:
+		return
+	_apply_move(sender, step.x, step.y)
+
+
+## One orthogonal tile. Anything else (including diagonals and teleports) is ignored.
+func _unit_step(dx: int, dy: int) -> Vector2i:
+	if absi(dx) + absi(dy) != 1:
+		return Vector2i.ZERO
+	return Vector2i(clampi(dx, -1, 1), clampi(dy, -1, 1))
 
 
 func _apply_move(peer_id: int, dx: int, dy: int) -> void:
+	var step := _unit_step(dx, dy)
+	if step == Vector2i.ZERO:
+		return
+	dx = step.x
+	dy = step.y
 	if not alive.get(peer_id, false):
 		return
 	if not player_nodes.has(peer_id):
@@ -928,14 +951,16 @@ func _kill_players_on_lethal() -> void:
 			_kill_player(peer_id)
 
 
-func _kill_player(peer_id: int) -> void:
+func _kill_player(peer_id: int, reason: String = "") -> void:
 	if not alive.get(peer_id, false):
 		return
 	alive[peer_id] = false
 	if Net.is_online():
-		_rpc_player_died.rpc(peer_id)
+		_rpc_player_died.rpc(peer_id, reason)
 	else:
 		_show_death(peer_id)
+		if reason != "" and status_label:
+			status_label.text = reason
 		_refresh_spectator_hud()
 	_check_winner()
 
@@ -1027,9 +1052,11 @@ func _kill_players_in(hit_cells: Array[Vector2i]) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_player_died(peer_id: int) -> void:
+func _rpc_player_died(peer_id: int, reason: String = "") -> void:
 	alive[peer_id] = false
 	_show_death(peer_id)
+	if reason != "" and status_label and not match_over:
+		status_label.text = reason
 	_refresh_spectator_hud()
 
 
@@ -1048,13 +1075,13 @@ func _check_winner() -> void:
 		return
 	var living: Array = []
 	for id in alive.keys():
-		if alive[id]:
+		if alive[id] and GameState.players.has(int(id)):
 			living.append(id)
 	if living.size() <= 1 and GameState.players.size() >= 1:
 		if GameState.players.size() == 1 and living.size() == 1:
 			return
 		match_over = true
-		var winner_name := "平局 / 全灭"
+		var winner_name := ""
 		if living.size() == 1:
 			var wid: int = living[0]
 			winner_name = str(GameState.players.get(wid, {}).get("name", wid))
@@ -1065,15 +1092,35 @@ func _check_winner() -> void:
 
 
 func _show_end_screen(winner_name: String) -> void:
-	status_label.text = "对局结束：%s 获胜！" % winner_name
-	end_title.text = "对局结束\n%s 获胜！" % winner_name
-	end_panel.visible = true
-	rematch_btn.disabled = false
-	_refresh_spectator_hud()
-	if Net.is_online() and Net.is_client:
-		rematch_btn.text = "再来一局（请求主机）"
+	if winner_name.is_empty():
+		status_label.text = "对局结束：平局"
+		end_title.text = "对局结束\n平局"
 	else:
-		rematch_btn.text = "再来一局"
+		status_label.text = "对局结束：%s 获胜！" % winner_name
+		end_title.text = "对局结束\n%s 获胜！" % winner_name
+	end_panel.visible = true
+	_refresh_spectator_hud()
+	_refresh_rematch_button()
+
+
+func _refresh_rematch_button() -> void:
+	if rematch_btn == null:
+		return
+	var me := _local_control_id()
+	var allowed := can_request_rematch(Net.is_online(), me, GameState.host_peer_id, GameState.players.size())
+	rematch_btn.visible = allowed
+	rematch_btn.disabled = not allowed
+	rematch_btn.text = "再来一局"
+
+
+## Offline solo can rematch alone. Online only the host can, and only with 2+ players left.
+## Dedicated server has no local player (peer_id 0), so its own button stays hidden.
+static func can_request_rematch(is_online: bool, peer_id: int, host_id: int, player_count: int) -> bool:
+	if peer_id <= 0:
+		return false
+	if not is_online:
+		return player_count >= 1
+	return peer_id == host_id and player_count >= 2
 
 
 @rpc("authority", "call_local", "reliable")
@@ -1083,9 +1130,11 @@ func _rpc_match_over(winner_name: String) -> void:
 
 
 func _on_rematch() -> void:
+	var me := _local_control_id()
+	if not can_request_rematch(Net.is_online(), me, GameState.host_peer_id, GameState.players.size()):
+		return
 	if Net.is_online() and not Net.is_authority():
 		_rpc_request_rematch.rpc_id(1)
-		status_label.text = "已请求再来一局…"
 		return
 	_restart_match()
 
@@ -1094,6 +1143,11 @@ func _on_rematch() -> void:
 func _rpc_request_rematch() -> void:
 	if not Net.is_authority():
 		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender <= 0:
+		return
+	if not can_request_rematch(true, sender, GameState.host_peer_id, GameState.players.size()):
+		return
 	_restart_match()
 
 
@@ -1101,6 +1155,8 @@ func _restart_match() -> void:
 	if not Net.is_authority():
 		return
 	if GameState.players.is_empty():
+		return
+	if Net.is_online() and GameState.players.size() < 2:
 		return
 	# Keep map_id; rematch always rolls a new soft_seed.
 	map_id = Arena.clamp_map_id(map_id if map_id >= 0 else GameState.map_id)
@@ -1123,29 +1179,83 @@ func _restart_match() -> void:
 
 
 func _on_back() -> void:
-	if Net.is_dedicated():
+	if Net.is_dedicated() or _leaving:
 		return
-	if Net.is_online() and Net.is_client:
-		Net.close()
-		GameState.reset_lobby()
-	else:
+	if not Net.is_online():
+		_leaving = true
 		GameState.in_match = false
+		get_tree().change_scene_to_file("res://scenes/lobby.tscn")
+		return
+	_leave_match("已离开房间")
+
+
+func _on_kicked_out(message: String) -> void:
+	_leave_match(message if not message.is_empty() else "你已被请出房间")
+
+
+func _on_net_disconnected() -> void:
+	if _leaving or Net.is_dedicated() or Net.is_server:
+		return
+	_leave_match("与服务器断开")
+
+
+func _on_roster_changed() -> void:
+	if match_over:
+		_refresh_rematch_button()
+
+
+func _leave_match(notice: String) -> void:
+	if _leaving or Net.is_dedicated():
+		return
+	_leaving = true
+	if Net.is_online():
+		Net.close()
+	GameState.reset_lobby()
+	GameState.pending_notice = notice
 	get_tree().change_scene_to_file("res://scenes/lobby.tscn")
 
 
 func _on_match_peer_out(id: int) -> void:
-	if _left_for_lobby or not Net.is_dedicated():
+	if _leaving or _left_for_lobby or not Net.is_authority():
 		return
-	if not GameState.players.has(id):
+	_forfeit_peer(int(id))
+
+
+## Drop a peer who left mid-match. Kill them before erasing the roster entry so a
+## 2-player game still counts as a win, not as the solo "don't end" case.
+func _forfeit_peer(id: int) -> void:
+	if id <= 0:
 		return
-	_gone_peers[int(id)] = true
-	var left := 0
+	if not GameState.players.has(id) and not alive.get(id, false):
+		return
+	var others := 0
 	for pid in GameState.players.keys():
-		if not _gone_peers.has(int(pid)):
-			left += 1
-	if left > 0:
+		if int(pid) != id:
+			others += 1
+	if others <= 0:
+		GameState.players.erase(id)
+		alive.erase(id)
+		GameState.recompute_host()
+		if Net.is_dedicated():
+			_return_dedicated_to_lobby()
+		return
+	if alive.get(id, false):
+		var nick := str(GameState.players.get(id, {}).get("name", "玩家"))
+		_kill_player(id, "%s 已离开" % nick)
+	GameState.players.erase(id)
+	alive.erase(id)
+	GameState.recompute_host()
+	if Net.is_online():
+		GameState.broadcast_room()
+	if match_over:
+		_refresh_rematch_button()
+
+
+func _return_dedicated_to_lobby() -> void:
+	if _left_for_lobby:
 		return
 	_left_for_lobby = true
+	_leaving = true
 	GameState.reset_lobby()
 	print("[Game] Dedicated room empty, returning to waiting room")
 	get_tree().call_deferred("change_scene_to_file", "res://scenes/lobby.tscn")

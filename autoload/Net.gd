@@ -141,7 +141,8 @@ func get_peer_id() -> int:
 
 
 func is_online() -> bool:
-	return multiplayer.multiplayer_peer != null
+	# OfflineMultiplayerPeer is installed by default and is not a session.
+	return is_server or is_client
 
 
 func is_authority() -> bool:

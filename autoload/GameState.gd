@@ -36,6 +36,8 @@ var map_id: int = 0
 var soft_seed: int = -1
 ## Raw lobby seed field (empty or non-int ⇒ random at resolve).
 var seed_input: String = ""
+## Shown once on the next lobby screen (disconnect, kick, leave). Survives reset_lobby().
+var pending_notice: String = ""
 
 
 func reset_lobby() -> void:
@@ -46,6 +48,12 @@ func reset_lobby() -> void:
 	# Keep map_id / seed_input as lobby preferences across disconnects.
 	soft_seed = -1
 	player_list_changed.emit()
+
+
+func consume_notice() -> String:
+	var message := pending_notice
+	pending_notice = ""
+	return message
 
 
 func register_local_as_host() -> void:

@@ -73,6 +73,10 @@ var _clock_sync_wait: float = 0.0
 var _left_for_lobby: bool = false
 ## Local player is leaving for the lobby; ignore disconnects caused by our own close().
 var _leaving: bool = false
+## Client prediction. [0] is the last host-confirmed cell; the tail is shown early.
+var _pred_cells: Array = []
+var _ghost_gen: int = 0
+var _sfx: Node
 
 
 func _ready() -> void:
@@ -97,6 +101,8 @@ func _ready() -> void:
 		GameState.kicked.connect(_on_kicked_out)
 	if not GameState.player_list_changed.is_connected(_on_roster_changed):
 		GameState.player_list_changed.connect(_on_roster_changed)
+	_sfx = preload("res://scripts/sfx.gd").new()
+	add_child(_sfx)
 	map_id = Arena.clamp_map_id(GameState.map_id)
 	grid = Arena.build_base_grid(map_id)
 	if Net.is_authority():
@@ -124,6 +130,7 @@ func _process(delta: float) -> void:
 			_tick_sudden_death(delta)
 			_kill_players_on_lethal()
 			_sync_match_clock(delta)
+			_tick_bot(delta)
 	elif not match_over:
 		# HUD clock only. Lethal cells arrive from the host.
 		sudden.advance_elapsed(delta)
@@ -160,11 +167,13 @@ func _poll_local_input() -> void:
 		if Net.is_authority():
 			_apply_move(my_id, dir.x, dir.y)
 		else:
+			_predict_step(dir)
 			_rpc_request_move.rpc_id(1, dir.x, dir.y)
 	if Input.is_action_just_pressed("place_bomb"):
 		if Net.is_authority():
 			_try_place_bomb(my_id)
 		else:
+			_show_bomb_ghost(_pred_tip())
 			_rpc_request_bomb.rpc_id(1)
 
 
@@ -221,9 +230,15 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 	if not Net.is_authority():
 		status_label.text = "对局进行中 · 地图：%s" % map_label
 	else:
-		status_label.text = "对局进行中（主机权威）· 地图：%s" % map_label
+		var versus := " · 对手：电脑 · 地图：%s" if GameState.solo_bot and not Net.is_online() else "· 地图：%s"
+		status_label.text = ("对局进行中（主机权威）" + versus) % map_label
 	for id in GameState.players.keys():
 		alive[id] = true
+	_pred_cells.clear()
+	_clear_bomb_ghost()
+	var me := _local_control_id()
+	if _uses_prediction() and player_nodes.has(me):
+		_pred_cells = [player_nodes[me].get_meta("cell")]
 	_refresh_stats_hud()
 	_refresh_sudden_death_hud()
 
@@ -318,7 +333,14 @@ func _rpc_request_move(dx: int, dy: int) -> void:
 	var step := _unit_step(dx, dy)
 	if step == Vector2i.ZERO:
 		return
+	var before := Vector2i.ZERO
+	var had := player_nodes.has(sender)
+	if had:
+		before = player_nodes[sender].get_meta("cell")
 	_apply_move(sender, step.x, step.y)
+	# Rejected steps still echo the host cell so a predicted pawn snaps back.
+	if had and player_nodes.has(sender) and player_nodes[sender].get_meta("cell") == before:
+		_rpc_set_player_cell.rpc(sender, before.x, before.y)
 
 
 ## One orthogonal tile. Anything else (including diagonals and teleports) is ignored.
@@ -507,7 +529,12 @@ func _rpc_set_player_cell(peer_id: int, x: int, y: int) -> void:
 	var node: Node2D = player_nodes[peer_id]
 	var cell := Vector2i(x, y)
 	node.set_meta("cell", cell)
-	node.position = _cell_to_pos(cell)
+	if _uses_prediction() and peer_id == _local_control_id():
+		var reconciled: Dictionary = MovePredict.ack(_pred_cells, cell)
+		_pred_cells = reconciled.chain
+		node.position = _cell_to_pos(reconciled.show)
+	else:
+		node.position = _cell_to_pos(cell)
 
 
 func _walkable(cell: Vector2i) -> bool:
@@ -575,6 +602,8 @@ func _rpc_spawn_bomb(bid: int, x: int, y: int, owner: int, blast: int = BASE_BLA
 			"slide_dx": 0, "slide_dy": 0, "slide_cd": 0.0,
 		}
 	_spawn_bomb_visual(bid, Vector2i(x, y))
+	if owner == _local_control_id():
+		_clear_bomb_ghost()
 	_refresh_stats_hud()
 
 
@@ -735,6 +764,8 @@ func _apply_boom_visual(bid: int, hit_cells: Array[Vector2i]) -> void:
 	var node := entities.get_node_or_null("Bomb_%d" % bid)
 	if node:
 		node.queue_free()
+	if _sfx:
+		_sfx.play_boom()
 	for c in hit_cells:
 		var flash := Polygon2D.new()
 		flash.polygon = PackedVector2Array([
@@ -807,6 +838,8 @@ func _try_pickup_at(peer_id: int, cell: Vector2i) -> void:
 		_rpc_pickup.rpc(peer_id, found, kind, _stats_pack(peer_id))
 	else:
 		_refresh_stats_hud()
+		if _sfx:
+			_sfx.play_pickup()
 
 
 func _stats_pack(peer_id: int) -> PackedInt32Array:
@@ -866,6 +899,8 @@ func _rpc_pickup(peer_id: int, powerup_id: int, kind: int, stats: PackedInt32Arr
 	else:
 		_apply_powerup(peer_id, kind)
 	_refresh_stats_hud()
+	if _sfx:
+		_sfx.play_pickup()
 	if player_nodes.has(peer_id):
 		var n: Node2D = player_nodes[peer_id]
 		n.modulate = Color(1.4, 1.4, 1.2, 1.0)
@@ -1297,3 +1332,135 @@ func _refresh_spectator_hud() -> void:
 		return
 	spec_label.visible = true
 	spec_label.text = "已阵亡 · 观战中"
+
+
+func _uses_prediction() -> bool:
+	return Net.is_online() and not Net.is_authority()
+
+
+func _pred_tip() -> Vector2i:
+	if not _pred_cells.is_empty():
+		return _pred_cells[_pred_cells.size() - 1]
+	var my_id := _local_control_id()
+	if player_nodes.has(my_id):
+		return player_nodes[my_id].get_meta("cell")
+	return Vector2i.ZERO
+
+
+func _predict_step(dir: Vector2i) -> void:
+	if _pred_cells.is_empty():
+		var my_id := _local_control_id()
+		if not player_nodes.has(my_id):
+			return
+		_pred_cells = [player_nodes[my_id].get_meta("cell")]
+	var nxt: Vector2i = _pred_tip() + dir
+	if not _can_predict_step(nxt):
+		return
+	_pred_cells.append(nxt)
+	var node: Node2D = player_nodes[_local_control_id()]
+	node.position = _cell_to_pos(nxt)
+
+
+## Empty tiles only. Kicks and other bombs wait for the host, then snap.
+func _can_predict_step(dst: Vector2i) -> bool:
+	if not _walkable(dst) or sudden.is_lethal(dst) or _bomb_id_at(dst) >= 0:
+		return false
+	var me := _local_control_id()
+	for pid in player_nodes.keys():
+		if int(pid) == me or not alive.get(pid, false):
+			continue
+		if player_nodes[pid].get_meta("cell") == dst:
+			return false
+	return true
+
+
+func _show_bomb_ghost(cell: Vector2i) -> void:
+	if not _can_predict_bomb(cell):
+		return
+	_clear_bomb_ghost()
+	var gen := _ghost_gen
+	var root := Node2D.new()
+	root.set_script(load("res://scripts/bomb.gd"))
+	root.setup(0, cell, TILE)
+	root.name = "BombGhost"
+	entities.add_child(root)
+	var timer := get_tree().create_timer(0.45)
+	timer.timeout.connect(func() -> void:
+		if gen == _ghost_gen and is_inside_tree():
+			_clear_bomb_ghost()
+	)
+
+
+func _can_predict_bomb(cell: Vector2i) -> bool:
+	var my_id := _local_control_id()
+	if my_id == 0:
+		return false
+	var st: Dictionary = player_stats.get(my_id, _default_stats())
+	var max_b := clampi(int(st.get("bombs", BASE_BOMBS)), 1, MAX_BOMBS)
+	if _count_bombs_owned(my_id) >= max_b or _bomb_id_at(cell) >= 0:
+		return false
+	return true
+
+
+func _clear_bomb_ghost() -> void:
+	_ghost_gen += 1
+	if entities == null:
+		return
+	var n := entities.get_node_or_null("BombGhost")
+	if n:
+		n.queue_free()
+
+
+func _tick_bot(_delta: float) -> void:
+	if Net.is_online() or match_over or not GameState.solo_bot:
+		return
+	var id := MatchBot.PEER_ID
+	if not alive.get(id, false) or not player_nodes.has(id):
+		return
+	var st: Dictionary = player_stats.get(id, _default_stats())
+	if float(st.get("move_cd", 0.0)) > 0.0:
+		return
+	var decision := MatchBot.decide(_bot_view(id))
+	var action := int(decision.get("action", MatchBot.Action.WAIT))
+	if action == MatchBot.Action.BOMB:
+		_try_place_bomb(id)
+	elif action == MatchBot.Action.MOVE:
+		_apply_move(id, int(decision.get("dx", 0)), int(decision.get("dy", 0)))
+	st = player_stats.get(id, st)
+	if float(st.get("move_cd", 0.0)) <= 0.0:
+		st.move_cd = _cooldown_for(id)
+		player_stats[id] = st
+
+
+func _bot_view(bot_id: int) -> Dictionary:
+	var cell: Vector2i = player_nodes[bot_id].get_meta("cell")
+	var st: Dictionary = player_stats.get(bot_id, _default_stats())
+	var max_b := clampi(int(st.get("bombs", BASE_BOMBS)), 1, MAX_BOMBS)
+	var bomb_list: Array = []
+	for b in bombs.values():
+		bomb_list.append({
+			"x": int(b.x),
+			"y": int(b.y),
+			"timer": float(b.get("timer", BOMB_FUSE)),
+			"range": int(b.get("range", BASE_BLAST)),
+			"pierce": int(b.get("pierce", 0)) > 0,
+		})
+	var others: Array[Vector2i] = []
+	for pid in player_nodes.keys():
+		if int(pid) == bot_id or not alive.get(pid, false):
+			continue
+		others.append(player_nodes[pid].get_meta("cell"))
+	var lethal: Array[Vector2i] = []
+	for key in sudden.lethal.keys():
+		lethal.append(key)
+	return {
+		"grid": grid,
+		"cols": COLS,
+		"rows": ROWS,
+		"cell": cell,
+		"blast_range": clampi(int(st.get("range", BASE_BLAST)), 1, MAX_RANGE),
+		"can_place": _count_bombs_owned(bot_id) < max_b and _bomb_id_at(cell) < 0,
+		"bombs": bomb_list,
+		"others": others,
+		"lethal": lethal,
+	}

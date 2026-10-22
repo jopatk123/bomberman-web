@@ -38,6 +38,8 @@ var soft_seed: int = -1
 var seed_input: String = ""
 ## Shown once on the next lobby screen (disconnect, kick, leave). Survives reset_lobby().
 var pending_notice: String = ""
+## Offline solo spawns MatchBot. Never replicated; online matches leave this false.
+var solo_bot: bool = false
 
 
 func reset_lobby() -> void:
@@ -45,6 +47,7 @@ func reset_lobby() -> void:
 	in_match = false
 	host_peer_id = 0
 	room_password = ""
+	solo_bot = false
 	# Keep map_id / seed_input as lobby preferences across disconnects.
 	soft_seed = -1
 	player_list_changed.emit()

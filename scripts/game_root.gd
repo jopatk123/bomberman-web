@@ -76,6 +76,8 @@ var _leaving: bool = false
 ## Client prediction. [0] is the last host-confirmed cell; the tail is shown early.
 var _pred_cells: Array = []
 var _ghost_gen: int = 0
+## Held by reference: a second same-named node gets auto-renamed by add_child.
+var _ghost_node: Node2D
 var _sfx: Node
 
 
@@ -1384,6 +1386,7 @@ func _show_bomb_ghost(cell: Vector2i) -> void:
 	root.setup(0, cell, TILE)
 	root.name = "BombGhost"
 	entities.add_child(root)
+	_ghost_node = root
 	var timer := get_tree().create_timer(0.45)
 	timer.timeout.connect(func() -> void:
 		if gen == _ghost_gen and is_inside_tree():
@@ -1404,11 +1407,12 @@ func _can_predict_bomb(cell: Vector2i) -> bool:
 
 func _clear_bomb_ghost() -> void:
 	_ghost_gen += 1
-	if entities == null:
-		return
-	var n := entities.get_node_or_null("BombGhost")
-	if n:
-		n.queue_free()
+	if is_instance_valid(_ghost_node):
+		# Detach now so the next ghost keeps the "BombGhost" name this frame.
+		if _ghost_node.get_parent():
+			_ghost_node.get_parent().remove_child(_ghost_node)
+		_ghost_node.queue_free()
+	_ghost_node = null
 
 
 func _tick_bot(_delta: float) -> void:
@@ -1426,10 +1430,6 @@ func _tick_bot(_delta: float) -> void:
 		_try_place_bomb(id)
 	elif action == MatchBot.Action.MOVE:
 		_apply_move(id, int(decision.get("dx", 0)), int(decision.get("dy", 0)))
-	st = player_stats.get(id, st)
-	if float(st.get("move_cd", 0.0)) <= 0.0:
-		st.move_cd = _cooldown_for(id)
-		player_stats[id] = st
 
 
 func _bot_view(bot_id: int) -> Dictionary:
@@ -1459,6 +1459,7 @@ func _bot_view(bot_id: int) -> Dictionary:
 		"rows": ROWS,
 		"cell": cell,
 		"blast_range": clampi(int(st.get("range", BASE_BLAST)), 1, MAX_RANGE),
+		"pierce": int(st.get("pierce", 0)) > 0,
 		"can_place": _count_bombs_owned(bot_id) < max_b and _bomb_id_at(cell) < 0,
 		"bombs": bomb_list,
 		"others": others,

@@ -123,6 +123,19 @@ func _solo_scene() -> void:
 	if game.player_nodes[1].get_meta("cell") != human:
 		_fail("bot moved the human")
 		return
+	# Two ghosts in one frame: the second must not be renamed or leak.
+	game._show_bomb_ghost(human)
+	game._show_bomb_ghost(human)
+	if game._ghost_node == null or str(game._ghost_node.name) != "BombGhost":
+		_fail("ghost missing or renamed: %s" % str(game._ghost_node))
+		return
+	var ghost: Node2D = game._ghost_node
+	game._clear_bomb_ghost()
+	await process_frame
+	if is_instance_valid(ghost):
+		_fail("ghost survived clear")
+		return
+	print("[verify_bot] bomb ghost OK")
 	var wav: PackedFloat32Array = game._sfx._boom_samples()
 	if wav.is_empty():
 		_fail("boom sample empty")

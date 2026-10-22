@@ -90,7 +90,9 @@ static func _worth_placing(view: Dictionary, cell: Vector2i, danger: Dictionary,
 	var cols := int(view.cols)
 	var rows := int(view.rows)
 	var rng := int(view.get("blast_range", 2))
-	var rays := BlastRules.compute_rays(view.grid, cell, rng, cols, rows, false)
+	var rays := BlastRules.compute_rays(
+		view.grid, cell, rng, cols, rows, bool(view.get("pierce", false))
+	)
 	var hits: Array = rays.hit
 	var cleared: Array = rays.cleared_soft
 	var useful := not cleared.is_empty()

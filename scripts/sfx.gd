@@ -2,14 +2,20 @@ extends Node
 ## Short synthesized stingers. No sample files. Silent under headless.
 
 var _voices: Array[AudioStreamPlayer] = []
+var _boom_wav: AudioStreamWAV
+var _pickup_wav: AudioStreamWAV
 
 
 func play_boom() -> void:
-	_play(_wav(_boom_samples()))
+	if _boom_wav == null:
+		_boom_wav = _wav(_boom_samples())
+	_play(_boom_wav)
 
 
 func play_pickup() -> void:
-	_play(_wav(_pickup_samples()))
+	if _pickup_wav == null:
+		_pickup_wav = _wav(_pickup_samples())
+	_play(_pickup_wav)
 
 
 func _play(wav: AudioStreamWAV) -> void:

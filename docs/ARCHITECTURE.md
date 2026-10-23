@@ -26,9 +26,10 @@
 1. **新玩法规则先落在 `scripts/match/`**  
    写好纯函数 / 小类后，再由 `game_root.gd` 调用。禁止直接在 `game_root` 里新增长篇 `if` 规则树。
 
-2. **`game_root.gd` 只做编排**  
-   允许：输入轮询、调用 match 模块、维护轻量运行时字典、发 RPC、驱动视觉节点。  
-   单文件建议控制在 **~600 行以内**；超过就继续拆 match / ui。
+2. **`game_root.gd` 只做编排，不设行数上限**  
+   它是对局里唯一发送 `@rpc` 的脚本，并拥有运行时字典和每帧顺序。主机判定与客机套用都写在这里，行数随同步事件增长。  
+   允许增加：输入轮询、调用 match 模块、维护运行时字典、新的 `@rpc`、驱动 `MatchBoard` / `MatchHud`。  
+   规则算法仍按第 1 条放进 `scripts/match/`。画面、预演和离房继续放在 `MatchBoard`、`MatchHud`、`ClientPredict`、`MatchSession`。
 
 3. **RPC 留在拥有 multiplayer 的场景脚本**  
    `match/*` **禁止** `@rpc`。网络边界：`lobby.gd` / `game_root.gd`（或未来的 `match_net.gd` 编排层）。
@@ -114,7 +115,7 @@ autoload Net / GameState   ← 仅连接与大厅快照
 
 ## 改动检查清单（PR / 提交前）
 
-- [ ] 新规则是否在 `match/` 而不是只写在 `game_root`？
+- [ ] 新规则是否在 `match/`？`game_root` 只增加 RPC、每帧顺序或模块调用（该文件不设行数上限）
 - [ ] 是否引入了新的 `@rpc` 在纯逻辑文件里？（不应）
 - [ ] 是否更新了 `verify_*.gd`？
 - [ ] 中文是否仍走 GameCJK 主题？

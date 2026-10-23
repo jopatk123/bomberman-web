@@ -253,6 +253,16 @@ func _check_arena_maps() -> bool:
 	if not _same_grid(cross_a, cross_b):
 		push_error("[verify_lobby] FAIL: same map+seed was not reproducible")
 		return false
+	if Arena.map_name(Arena.MAP_RANDOM) != "随机":
+		push_error("[verify_lobby] FAIL: random map name")
+		return false
+	var rolled := Arena.resolve_map_id(Arena.MAP_RANDOM)
+	if rolled < int(Arena.MapId.CLASSIC) or rolled > int(Arena.MapId.MAZE):
+		push_error("[verify_lobby] FAIL: resolve random map %d" % rolled)
+		return false
+	if Arena.lobby_map_id(Arena.MAP_RANDOM) != Arena.MAP_RANDOM:
+		push_error("[verify_lobby] FAIL: lobby random id")
+		return false
 	print("[verify_lobby] arena maps OK")
 	return true
 
@@ -311,8 +321,21 @@ func _check_lobby_ui(gs) -> bool:
 	if not str(lobby.address_edit.text).contains("9080"):
 		push_error("[verify_lobby] FAIL: default join address %s" % lobby.address_edit.text)
 		return false
-	if lobby.map_option.item_count != 4 or lobby.map_option.get_item_text(0) != "经典" or lobby.map_option.get_item_text(3) != "迷宫":
+	if lobby.map_option.item_count != 5 or lobby.map_option.get_item_text(0) != "随机" or lobby.map_option.get_item_text(4) != "迷宫":
 		push_error("[verify_lobby] FAIL: map option items")
+		return false
+	if lobby.seed_edit.get_parent().visible:
+		push_error("[verify_lobby] FAIL: soft-wall seed should be hidden")
+		return false
+	if int(lobby.DIRECTORY_REFRESH_SEC) < 1:
+		push_error("[verify_lobby] FAIL: directory refresh interval")
+		return false
+	if int(lobby.map_option.get_item_id(lobby.map_option.selected)) != int(Arena.MAP_RANDOM):
+		push_error("[verify_lobby] FAIL: map dropdown default should be random")
+		return false
+	var fresh: Dictionary = RoomCodes.fresh("TEST", "")
+	if int(fresh.get("map_id", 0)) != int(Arena.MAP_RANDOM):
+		push_error("[verify_lobby] FAIL: new room default map should be random")
 		return false
 	if lobby.room_list_scroll == null or lobby.room_list == null:
 		push_error("[verify_lobby] FAIL: room list nodes missing")

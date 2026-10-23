@@ -36,7 +36,7 @@ var in_match: bool = false
 var host_peer_id: int = 0
 var room_password: String = ""
 ## Lobby / match map selection (Arena.MapId).
-var map_id: int = 0
+var map_id: int = Arena.MAP_RANDOM
 ## Resolved soft-wall seed used for the current / next match. -1 = not resolved yet.
 var soft_seed: int = -1
 ## Raw lobby seed field (empty or non-int ⇒ random at resolve).
@@ -157,7 +157,7 @@ func resolve_room_seed(code: String) -> int:
 
 
 func set_map_id(id: int) -> void:
-	map_id = Arena.clamp_map_id(id)
+	map_id = Arena.lobby_map_id(id)
 	if room_code != "" and rooms.has(room_code):
 		rooms[room_code].map_id = map_id
 	map_settings_changed.emit()
@@ -323,7 +323,7 @@ func apply_map_settings(sender: int, next_map: int, next_seed_input: String) -> 
 	if code != "" and rooms.has(code):
 		if sender != int(rooms[code].host_peer_id):
 			return false
-		rooms[code].map_id = Arena.clamp_map_id(next_map)
+		rooms[code].map_id = Arena.lobby_map_id(next_map)
 		rooms[code].seed_input = next_seed_input
 		rooms[code].soft_seed = -1
 		_mirror(code)
@@ -398,7 +398,7 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 				dest[k] = normalized[k]
 			rooms[code].host_peer_id = int(snapshot.get("host_peer_id", rooms[code].host_peer_id))
 			rooms[code].room_password = str(snapshot.get("room_password", rooms[code].room_password))
-			rooms[code].map_id = Arena.clamp_map_id(int(snapshot.get("map_id", rooms[code].map_id)))
+			rooms[code].map_id = Arena.lobby_map_id(int(snapshot.get("map_id", rooms[code].map_id)))
 			if snapshot.has("seed_input"):
 				rooms[code].seed_input = str(snapshot["seed_input"])
 			if snapshot.has("soft_seed"):
@@ -420,7 +420,7 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 			players = normalized
 			host_peer_id = int(snapshot.get("host_peer_id", 0))
 			room_password = str(snapshot.get("room_password", ""))
-			map_id = Arena.clamp_map_id(int(snapshot.get("map_id", map_id)))
+			map_id = Arena.lobby_map_id(int(snapshot.get("map_id", map_id)))
 			if snapshot.has("seed_input"):
 				seed_input = str(snapshot["seed_input"])
 			if snapshot.has("soft_seed"):
@@ -586,7 +586,7 @@ func launch_match() -> void:
 		return
 	if start_block_reason() != "":
 		return
-	map_id = Arena.clamp_map_id(map_id)
+	map_id = Arena.lobby_map_id(map_id)
 	resolve_soft_seed()
 	in_match = true
 	_send_start(make_snapshot())
@@ -600,7 +600,7 @@ func launch_room(code: String) -> void:
 	var room: Dictionary = rooms[code]
 	if _block_reason(room.players) != "":
 		return
-	room.map_id = Arena.clamp_map_id(int(room.map_id))
+	room.map_id = Arena.lobby_map_id(int(room.map_id))
 	resolve_room_seed(code)
 	room.in_match = true
 	_mirror(code)

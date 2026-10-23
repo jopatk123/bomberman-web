@@ -89,11 +89,11 @@ autoload Net / GameState   ← 仅连接与大厅快照
 - 对局节点挂在自动加载 `MatchHost` 下，路径是 `/root/MatchHost/<房间码>`，客机和主机一致，RPC 不会串房。单机试试仍直接切到 `game.tscn`
 - 一间房对局中时，别的房间码照样能开新局。房满、密码错、码不对、对局中，都只拒绝这一次登记
 
-- 界面在 `scenes/lobby.tscn` + `scripts/lobby.gd`：登录页（昵称、连接服务器后房间列表最多约 3 行可见可滚动、新建房间、密码、单机试试、高级端口/地址）和等待房间（房间码、准备、房主开始、离开、密码、地图）
+- 界面在 `scenes/lobby.tscn` + `scripts/lobby.gd`：登录页（昵称、进页自动连接并约每 5 秒刷新房间列表、列表约 3 行可见可滚动、新建房间、密码、单机试试、高级端口/地址）和等待房间（房间码、准备、房主开始、离开、密码、地图）
 - 房间快照在 `GameState`：`room_code`、`players[*].ready`、`host_peer_id`、`room_password`、`map_id`、`seed_input`、`soft_seed`、`in_match`。广播只发给这间房里的人
 - 同步仍走 `GameState._rpc_sync_players`。快照是带 `players` 字段的字典；旧的「纯玩家字典」仍能被 `apply_snapshot` 读入
 - 房主是该房 `players` 里最小的 peer id。专用服进程是 peer 1，但自己不占玩家位；有人离开就重算这间房的房主
-- 地图和软墙种子只有房主能改，经 `GameState._rpc_sync_map_settings` 写到权威端再广播。种子空或非数字时，开局由 `resolve_soft_seed()` 随机；整数则固定。再来一局保留 `map_id`，重新随机 `soft_seed`
+- 地图只有房主能改（默认「随机」，开局 `Arena.resolve_map_id` 落成具体布局）；软墙种子不在界面展示，始终开局随机。再来一局：固定地图保留，随机偏好重抽布局，并重新随机 `soft_seed`
 - 连上专用服后、进房前，权威端广播 `lobby_directory`（房间码/人数/对局中/是否加密，不含密码明文）；登记失败不踢线，可继续选房
 - 登记被拒（对局中、密码错、已满 4 人、房间码不对）会 RPC 回客户端并显示原因，不会停在「登记中」
 - 开始条件：房主操作，且至少 2 人、全员已准备。没有满员自动开局

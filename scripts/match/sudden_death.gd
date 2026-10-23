@@ -3,7 +3,9 @@ extends RefCounted
 ## Shrinking safe zone: after START_AT seconds, border playable cells become
 ## permanent lethal fire, expanding inward every INTERVAL seconds.
 ## Rematch must call reset(). Soft walls in new lethal cells are cleared by caller.
+## ENABLED=false removes countdown HUD and ring (keep code for later re-enable).
 
+const ENABLED := false
 const START_AT := 90.0
 const INTERVAL := 3.0
 
@@ -27,6 +29,8 @@ func reset() -> void:
 ## Advance the shared match clock only. Clients call this for the HUD.
 ## Lethal cells stay authority-owned via tick().
 func advance_elapsed(delta: float) -> void:
+	if not ENABLED:
+		return
 	elapsed += delta
 
 
@@ -37,9 +41,13 @@ func tick(delta: float, cols: int, rows: int, grid: Array, cell_hard: int) -> Di
 	var result := {
 		"just_activated": false,
 		"new_cells": [] as Array[Vector2i],
-		"countdown": maxf(0.0, START_AT - elapsed),
-		"active": active,
+		"countdown": 0.0,
+		"active": false,
 	}
+	if not ENABLED:
+		return result
+	result.countdown = maxf(0.0, START_AT - elapsed)
+	result.active = active
 	advance_elapsed(delta)
 	result.countdown = maxf(0.0, START_AT - elapsed)
 	if elapsed < START_AT:

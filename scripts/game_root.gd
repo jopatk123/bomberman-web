@@ -133,11 +133,12 @@ func _process(delta: float) -> void:
 		if not match_over:
 			_tick_bomb_slides(delta)
 			_tick_bombs(delta)
-			_tick_sudden_death(delta)
-			_kill_players_on_lethal()
-			_sync_match_clock(delta)
+			if SuddenDeath.ENABLED:
+				_tick_sudden_death(delta)
+				_kill_players_on_lethal()
+				_sync_match_clock(delta)
 			_tick_bot(delta)
-	elif not match_over:
+	elif not match_over and SuddenDeath.ENABLED:
 		# HUD clock only. Lethal cells arrive from the host.
 		sudden.advance_elapsed(delta)
 	if not match_over:

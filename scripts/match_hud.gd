@@ -91,6 +91,11 @@ func refresh_spectator(my_id: int, match_over: bool, is_alive: bool) -> void:
 func refresh_sudden_death(active: bool, elapsed: float, start_at: float, match_over: bool) -> void:
 	if sd_label == null:
 		return
+	if not SuddenDeath.ENABLED:
+		if _sd_key != "hide":
+			_sd_key = "hide"
+			sd_label.visible = false
+		return
 	var key := "hide"
 	var text := ""
 	if not match_over:

@@ -1,11 +1,13 @@
 class_name SuddenDeath
 extends RefCounted
 ## Shrinking safe zone: after START_AT seconds, border playable cells become
-## permanent lethal fire, expanding inward every INTERVAL seconds.
-## Rematch must call reset(). Soft walls in new lethal cells are cleared by caller.
+## permanent lethal fire, expanding inward every INTERVAL seconds after the
+## first ring. Rematch must call reset(). Soft walls in new lethal cells are
+## cleared by caller.
 
 const START_AT := 90.0
-const INTERVAL := 3.0
+## Seconds between rings after the first shrink (first ring lands on activate).
+const INTERVAL := 15.0
 
 var elapsed: float = 0.0
 var active: bool = false
@@ -28,6 +30,24 @@ func reset() -> void:
 ## Lethal cells stay authority-owned via tick().
 func advance_elapsed(delta: float) -> void:
 	elapsed += delta
+
+
+## Seconds until the next ring (0 when inactive or about to expand).
+func next_pulse_in() -> float:
+	if not active:
+		return 0.0
+	return maxf(0.0, _pulse_left)
+
+
+func set_pulse_left(seconds: float) -> void:
+	_pulse_left = maxf(0.0, seconds)
+
+
+## Clients only: tick the HUD countdown between authority syncs (no ring expand).
+func advance_pulse_display(delta: float) -> void:
+	if not active:
+		return
+	_pulse_left = maxf(0.0, _pulse_left - delta)
 
 
 ## Call each authority frame while match is running.

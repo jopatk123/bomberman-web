@@ -1,8 +1,8 @@
 class_name MatchBoard
 extends RefCounted
-## Map tiles, pawn/bomb/powerup nodes, and short-lived blast or sudden-death polygons.
+## Map tiles, pawn/bomb/powerup nodes, and short-lived blast or sudden-death FX.
 ## Does not decide movement, blasts, or wins.
-## Pixel tiles + entity/blast/soft-break sprites. Sudden-death FX stay polygons.
+## Pixel tiles + entity/blast/soft-break sprites. Sudden-death uses hazard sprites.
 
 
 const TILE := 48
@@ -17,6 +17,11 @@ const TEX_SOFT_BREAK: Array[Texture2D] = [
 	preload("res://assets/art/pixel/fx/soft_break_0.png"),
 	preload("res://assets/art/pixel/fx/soft_break_1.png"),
 	preload("res://assets/art/pixel/fx/soft_break_2.png"),
+]
+const TEX_SD_HAZARD: Array[Texture2D] = [
+	preload("res://assets/art/pixel/fx/sd_hazard_0.png"),
+	preload("res://assets/art/pixel/fx/sd_hazard_1.png"),
+	preload("res://assets/art/pixel/fx/sd_hazard_2.png"),
 ]
 
 
@@ -234,15 +239,60 @@ func add_sudden_death(cells: Array) -> void:
 		var key := "%d,%d" % [c.x, c.y]
 		if sd_visuals.has(key):
 			continue
-		var poly := Polygon2D.new()
-		poly.polygon = PackedVector2Array([
-			Vector2(2, 2), Vector2(TILE - 2, 2), Vector2(TILE - 2, TILE - 2), Vector2(2, TILE - 2)
-		])
-		poly.position = Vector2(c.x * TILE, c.y * TILE)
-		poly.color = Color(0.95, 0.25, 0.1, 0.72)
-		poly.z_index = 2
-		fx_layer.add_child(poly)
-		sd_visuals[key] = poly
+		var spr := Sprite2D.new()
+		spr.texture = TEX_SD_HAZARD[0]
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.centered = true
+		spr.position = cell_to_pos(c)
+		spr.z_index = 2
+		spr.modulate = Color(1.6, 1.35, 1.1, 1.0)
+		spr.scale = Vector2(0.35, 0.35)
+		fx_layer.add_child(spr)
+		sd_visuals[key] = spr
+		_animate_sd_appear(spr)
+
+
+func _animate_sd_appear(spr: Sprite2D) -> void:
+	if fx_layer == null or not is_instance_valid(spr):
+		return
+	var tree := fx_layer.get_tree()
+	# Pop-in + frame flash, then settle into a soft pulse loop.
+	var t1 := tree.create_timer(0.06)
+	t1.timeout.connect(func() -> void:
+		if not is_instance_valid(spr):
+			return
+		spr.texture = TEX_SD_HAZARD[1]
+		spr.scale = Vector2(1.15, 1.15)
+		spr.modulate = Color(1.8, 1.5, 1.2, 1.0)
+	)
+	var t2 := tree.create_timer(0.14)
+	t2.timeout.connect(func() -> void:
+		if not is_instance_valid(spr):
+			return
+		spr.texture = TEX_SD_HAZARD[2]
+		spr.scale = Vector2(1.0, 1.0)
+	)
+	var t3 := tree.create_timer(0.26)
+	t3.timeout.connect(func() -> void:
+		if not is_instance_valid(spr):
+			return
+		spr.texture = TEX_SD_HAZARD[0]
+		spr.modulate = Color(1.0, 1.0, 1.0, 0.92)
+		_loop_sd_pulse(spr, 0)
+	)
+
+
+func _loop_sd_pulse(spr: Sprite2D, phase: int) -> void:
+	if fx_layer == null or not is_instance_valid(spr):
+		return
+	var bright := (phase % 2) == 0
+	spr.texture = TEX_SD_HAZARD[1 if bright else 0]
+	spr.modulate = Color(1.25, 1.1, 1.0, 1.0) if bright else Color(1.0, 1.0, 1.0, 0.88)
+	var wait := 0.55 if bright else 0.7
+	var timer := fx_layer.get_tree().create_timer(wait)
+	timer.timeout.connect(func() -> void:
+		_loop_sd_pulse(spr, phase + 1)
+	)
 
 
 func clear_sudden_death() -> void:

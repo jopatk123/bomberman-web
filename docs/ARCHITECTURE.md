@@ -68,7 +68,7 @@ autoload Net / GameState   ← 仅连接与大厅快照
 
 - `Arena` — 13×11 多地图硬墙布局 + 软墙种子。`MapId`：经典 / 开阔 / 十字 / 迷宫；`build_base_grid` / `build_match_grid(map_id, soft_seed)`；同 `map_id+soft_seed` 软墙一致；四角出生及正交邻格永不硬墙/软墙
 - `BlastRules` — 爆炸射线、软墙清除打包。`compute_rays(..., pierce=false)`：软墙被命中并清除；未穿透时射线停在软墙，穿透时继续，直到射程用尽或碰到硬墙。硬墙始终挡住射线，格子本身不被命中
-- `SuddenDeath` — 90s 后缩圈致死格。各端只前进 `elapsed` 做倒计时；致死格只由主机 `tick` 扩展
+- `SuddenDeath` — 90s 后首次缩圈致死格，之后每 `INTERVAL`（15s）向内一圈。各端只前进 `elapsed` 做倒计时；致死格只由主机 `tick` 扩展
 - `KickRules` — 穿弹 / 踢弹判定、滑行阻挡。踢进已有火圈由 `game_root` 立即引爆，走进这场爆炸的人会阵亡；缩圈盖住的炸弹被吞掉，不额外爆炸
 - `MatchBot` — 单机对手。只在 `GameState.solo_bot` 且离线权威端由 `game_root` 调用；危险格上先逃走，有退路才炸软墙或对手，否则走向软墙 / 玩家。联机对局不生成电脑
 - `MovePredict` — 客机移动预演的确认链。下标 0 是主机已确认的格子，后面是提前画出的步；主机重复确认链头表示这几步被拒绝，Pawn 拉回
@@ -79,7 +79,7 @@ autoload Net / GameState   ← 仅连接与大厅快照
 
 画面不进 `match/`：`MatchBoard` 画格子和实体，`MatchHud` 画文字和结算面板，`ClientPredict` 保存客机预演链和影子炸弹。`MatchSession` 管离开、被踢、断线、中途弃权和专用服空房回大厅。`@rpc` 仍只在 `game_root`。
 
-像素街机贴图在 `assets/art/pixel/`：`lobby_bg.jpg` 铺满大厅；`tiles/` 地块；`entities/` 四色角色与炸弹；`fx/` 爆炸中心/横竖焰与软墙碎裂三帧。`MatchBoard.play_boom` 用 `Sprite2D` 播爆炸与碎裂，软墙炸开后 `repaint_cells` 换地板。缩圈和道具仍是色块。
+像素街机贴图在 `assets/art/pixel/`：`lobby_bg.jpg` 铺满大厅；`tiles/` 地块；`entities/` 四色角色与炸弹；`fx/` 爆炸中心/横竖焰与软墙碎裂三帧。`MatchBoard.play_boom` 用 `Sprite2D` 播爆炸与碎裂，软墙炸开后 `repaint_cells` 换地板。缩圈致死格用 `fx/sd_hazard_*.png` 像素焰脉贴图（出现动画 + 循环闪烁）；道具仍是色块。
 
 ## 大厅 / 房间
 
@@ -109,7 +109,7 @@ autoload Net / GameState   ← 仅连接与大厅快照
 ## 联机与表现约定
 
 - 突然死亡新增格、被吞掉的炸弹 id、被烧掉的道具 id，由主机一次 RPC 发给所有端（含自己）
-- 倒计时最后 30 秒，主机每秒把 `elapsed` / 是否已开始同步给客机
+- 倒计时最后 30 秒及缩圈阶段，主机每秒把 `elapsed` / 是否已开始 / 距下次缩圈同步给客机
 - 软墙被炸开或被火圈清掉时，只重绘变化的格子，不重建整张地图
 - 炸弹数 HUD 在放置、爆炸、吞弹、捡道具时刷新，不在每帧重写 Label
 - 客机移动先按本地格子预演，放炸弹先放一个影子；主机格子对不上时拉回。踢弹不预演，等主机把炸弹推走再对齐

@@ -1,11 +1,15 @@
 extends Node2D
-## Authority-side match simulation + client visuals.
-## Grid: 13×11, selectable Arena layouts, soft walls by seed, 4 corner spawns.
-## Power-ups: Bomb+ / Range+ / Speed+ / Kick / Pierce from soft walls.
+## Match conductor: input → match rules → RPC → MatchBoard / MatchHud.
+## Grid rules live in scripts/match/. This script owns the running dictionaries
+## and is the only place in a match that sends @rpc.
 ##
-## See BlastRules for blast/chain/powerup destruction rules.
-## See SuddenDeath for shrinking lethal zone.
-## See KickRules for bomb-pass / kick. See Arena for layouts + soft seed.
+## PlayerStats — caps, pickup, stat packs.
+## BombRecord — bomb dictionary shape.
+## PowerupDrop — soft-wall drops.
+## MatchEnd — win, draw, rematch, forfeit.
+## BlastRules / SuddenDeath / KickRules / Arena / MatchBot / MovePredict — as before.
+## MatchBoard paints tiles and entities. MatchHud paints labels.
+## ClientPredict stores the local move chain and bomb ghost.
 
 const TILE := 48
 const COLS := 13
@@ -16,10 +20,7 @@ const BASE_BOMBS := 1
 const MAX_BOMBS := 5
 const MAX_RANGE := 6
 const MAX_SPEED_LVL := 4
-const POWERUP_CHANCE := 0.38
 const KICK_SLIDE_INTERVAL := 0.07
-## Index = speed level → move cooldown seconds
-const SPEED_COOLDOWNS := [0.14, 0.115, 0.095, 0.078, 0.062]
 
 enum Cell { EMPTY = 0, HARD = 1, SOFT = 2 }
 enum PKind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3, PIERCE = 4 }
@@ -46,25 +47,19 @@ var soft_seed: int = 0
 var map_id: int = 0
 ## peer_id -> player node
 var player_nodes: Dictionary = {}
-## bomb_id -> {x,y,owner,timer,range,pierce,solid,slide_dx,slide_dy,slide_cd}
+## bomb_id -> BombRecord
 var bombs: Dictionary = {}
 var next_bomb_id: int = 1
 ## powerup_id -> {x,y,kind}
 var powerups: Dictionary = {}
 var next_powerup_id: int = 1
-## peer_id -> {bombs, range, speed, kick, pierce, move_cd}
+## peer_id -> PlayerStats
 var player_stats: Dictionary = {}
 var alive: Dictionary = {} # peer_id -> bool
 var match_over: bool = false
 ## Client-side input cooldown; server also tracks per-player move_cd
 var _local_move_cd: float = 0.0
 var sudden: SuddenDeath = SuddenDeath.new()
-## Permanent sudden-death fire visuals: cell key "x,y" -> Polygon2D
-var _sd_visuals: Dictionary = {}
-## map_polys[y][x] -> Polygon2D. Repaint changed cells instead of rebuilding the map.
-var _map_polys: Array = []
-## Last sudden-death HUD key, so the label is rewritten only when the second changes.
-var _sd_hud_key: String = ""
 ## Cells hit by blasts during the current move, so stepping into that flame kills.
 var _blast_hits: Array[Vector2i] = []
 ## Seconds until the next authority clock sync during the countdown window.
@@ -73,28 +68,32 @@ var _clock_sync_wait: float = 0.0
 var _left_for_lobby: bool = false
 ## Local player is leaving for the lobby; ignore disconnects caused by our own close().
 var _leaving: bool = false
-## Client prediction. [0] is the last host-confirmed cell; the tail is shown early.
-var _pred_cells: Array = []
-var _ghost_gen: int = 0
-## Held by reference: a second same-named node gets auto-renamed by add_child.
-var _ghost_node: Node2D
+var _board := MatchBoard.new()
+var _hud := MatchHud.new()
+var _predict := ClientPredict.new()
 var _sfx: Node
+
+## Forwarded so existing checks can read the board's fire polygons.
+var _sd_visuals: Dictionary:
+	get:
+		return _board.sd_visuals
+
+## Forwarded so existing checks can read the ghost the predictor is showing.
+var _ghost_node: Node2D:
+	get:
+		return _predict.ghost
 
 
 func _ready() -> void:
+	_board.bind(map_layer, entities, powerups_layer, fx_layer, COLS, ROWS)
+	_hud.bind(
+		status_label, stats_label, spec_label, help_label, sd_label,
+		end_panel, end_title, rematch_btn, back_btn, lobby_btn
+	)
 	back_btn.pressed.connect(_on_back)
 	rematch_btn.pressed.connect(_on_rematch)
 	lobby_btn.pressed.connect(_on_back)
-	end_panel.visible = false
-	spec_label.visible = false
-	if sd_label:
-		sd_label.visible = false
-	if help_label:
-		help_label.text = "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹 / 黄P穿透"
-	if Net.is_dedicated():
-		back_btn.visible = false
-		rematch_btn.visible = false
-		lobby_btn.visible = false
+	_hud.prepare(Net.is_dedicated())
 	if not Net.peer_disconnected.is_connected(_on_match_peer_out):
 		Net.peer_disconnected.connect(_on_match_peer_out)
 	if not Net.disconnected.is_connected(_on_net_disconnected):
@@ -117,7 +116,7 @@ func _ready() -> void:
 		else:
 			_rpc_setup_match(soft_seed, GameState.players, map_id)
 	else:
-		status_label.text = "等待主机同步地图…"
+		_hud.set_status("等待主机同步地图…")
 	_refresh_stats_hud()
 	set_process(true)
 
@@ -189,13 +188,11 @@ func _local_control_id() -> int:
 
 
 func _cooldown_for(peer_id: int) -> float:
-	var st: Dictionary = player_stats.get(peer_id, {})
-	var lvl: int = clampi(int(st.get("speed", 0)), 0, MAX_SPEED_LVL)
-	return float(SPEED_COOLDOWNS[lvl])
+	return PlayerStats.cooldown(player_stats.get(peer_id, {}))
 
 
 func _default_stats() -> Dictionary:
-	return {"bombs": BASE_BOMBS, "range": BASE_BLAST, "speed": 0, "kick": 0, "pierce": 0, "move_cd": 0.0}
+	return PlayerStats.default_stats()
 
 
 func _init_all_stats() -> void:
@@ -212,8 +209,7 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 	GameState.map_id = map_id
 	GameState.soft_seed = soft_seed
 	match_over = false
-	end_panel.visible = false
-	spec_label.visible = false
+	_hud.hide_end()
 	sudden.reset()
 	_clear_sd_visuals()
 	_clear_powerups()
@@ -221,7 +217,7 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 	bombs.clear()
 	next_bomb_id = 1
 	next_powerup_id = 1
-	_sd_hud_key = ""
+	_hud.invalidate_sudden_death()
 	_clock_sync_wait = 0.0
 	alive.clear()
 	grid = Arena.build_match_grid(map_id, soft_seed)
@@ -230,26 +226,23 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 	_spawn_all_players()
 	var map_label := Arena.map_name(map_id)
 	if not Net.is_authority():
-		status_label.text = "对局进行中 · 地图：%s" % map_label
+		_hud.set_status("对局进行中 · 地图：%s" % map_label)
 	else:
 		var versus := " · 对手：电脑 · 地图：%s" if GameState.solo_bot and not Net.is_online() else "· 地图：%s"
-		status_label.text = ("对局进行中（主机权威）" + versus) % map_label
+		_hud.set_status(("对局进行中（主机权威）" + versus) % map_label)
 	for id in GameState.players.keys():
 		alive[id] = true
-	_pred_cells.clear()
+	_predict.clear_chain()
 	_clear_bomb_ghost()
 	var me := _local_control_id()
 	if _uses_prediction() and player_nodes.has(me):
-		_pred_cells = [player_nodes[me].get_meta("cell")]
+		_predict.seed(player_nodes[me].get_meta("cell"))
 	_refresh_stats_hud()
 	_refresh_sudden_death_hud()
 
 
 func _spawn_all_players() -> void:
-	for c in entities.get_children():
-		var n := c as Node
-		if n.name.begins_with("Player_"):
-			n.queue_free()
+	_board.clear_players()
 	player_nodes.clear()
 	var ids := GameState.get_sorted_peer_ids()
 	var spawns := Arena.spawn_cells()
@@ -268,61 +261,20 @@ func _spawn_all_players() -> void:
 
 
 func _make_player_visual(peer_id: int, cell: Vector2i) -> Node2D:
-	var root := Node2D.new()
-	root.set_script(load("res://scripts/player.gd"))
 	var display := str(GameState.players.get(peer_id, {}).get("name", peer_id))
-	root.setup(peer_id, cell, GameState.color_for_peer(peer_id), display, TILE)
-	return root
-
-
-func _tile_color(x: int, y: int) -> Color:
-	match int(grid[y][x]):
-		Cell.HARD:
-			return Color(0.25, 0.28, 0.35)
-		Cell.SOFT:
-			return Color(0.7, 0.45, 0.25)
-		_:
-			return Color(0.15, 0.55, 0.25) if (x + y) % 2 == 0 else Color(0.12, 0.48, 0.22)
+	return _board.make_player(peer_id, cell, GameState.color_for_peer(peer_id), display)
 
 
 func _draw_map() -> void:
-	for c in map_layer.get_children():
-		(c as Node).queue_free()
-	_map_polys.clear()
-	for y in ROWS:
-		var row: Array = []
-		for x in COLS:
-			var poly := Polygon2D.new()
-			poly.polygon = PackedVector2Array([
-				Vector2(0, 0), Vector2(TILE, 0), Vector2(TILE, TILE), Vector2(0, TILE)
-			])
-			poly.position = Vector2(x * TILE, y * TILE)
-			poly.color = _tile_color(x, y)
-			map_layer.add_child(poly)
-			row.append(poly)
-		_map_polys.append(row)
-	var map_w := COLS * TILE
-	var map_h := ROWS * TILE
-	position = Vector2((960 - map_w) * 0.5, (720 - map_h) * 0.5 - 20)
+	_board.draw_map(grid, self)
 
 
-## Recolor tiles that changed. Falls back to a full draw if the tile cache is missing.
 func _repaint_cells(cells: Array) -> void:
-	if _map_polys.size() != ROWS:
-		_draw_map()
-		return
-	for c in cells:
-		var x: int = int(c.x)
-		var y: int = int(c.y)
-		if y < 0 or y >= ROWS or x < 0 or x >= COLS:
-			continue
-		var poly: Polygon2D = _map_polys[y][x]
-		if is_instance_valid(poly):
-			poly.color = _tile_color(x, y)
+	_board.repaint_cells(grid, cells, self)
 
 
 func _cell_to_pos(cell: Vector2i) -> Vector2:
-	return Vector2(cell.x * TILE + TILE * 0.5, cell.y * TILE + TILE * 0.5)
+	return _board.cell_to_pos(cell)
 
 
 @rpc("any_peer", "reliable")
@@ -517,11 +469,7 @@ func _rpc_set_bomb_cell(bid: int, x: int, y: int) -> void:
 
 
 func _apply_bomb_cell_visual(bid: int, cell: Vector2i) -> void:
-	var node := entities.get_node_or_null("Bomb_%d" % bid)
-	if node and node.has_method("set_cell"):
-		node.set_cell(cell)
-	elif node:
-		node.position = _cell_to_pos(cell)
+	_board.move_bomb(bid, cell)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -532,9 +480,7 @@ func _rpc_set_player_cell(peer_id: int, x: int, y: int) -> void:
 	var cell := Vector2i(x, y)
 	node.set_meta("cell", cell)
 	if _uses_prediction() and peer_id == _local_control_id():
-		var reconciled: Dictionary = MovePredict.ack(_pred_cells, cell)
-		_pred_cells = reconciled.chain
-		node.position = _cell_to_pos(reconciled.show)
+		node.position = _cell_to_pos(_predict.ack_cell(cell))
 	else:
 		node.position = _cell_to_pos(cell)
 
@@ -557,11 +503,7 @@ func _rpc_request_bomb() -> void:
 
 
 func _count_bombs_owned(peer_id: int) -> int:
-	var n := 0
-	for b in bombs.values():
-		if int(b.owner) == peer_id:
-			n += 1
-	return n
+	return BombRecord.count_owned(bombs, peer_id)
 
 
 func _try_place_bomb(peer_id: int) -> void:
@@ -583,11 +525,7 @@ func _try_place_bomb(peer_id: int) -> void:
 	var bid := next_bomb_id
 	next_bomb_id += 1
 	# solid=false → owner may walk off; becomes solid once they leave
-	bombs[bid] = {
-		"x": cell.x, "y": cell.y, "owner": peer_id,
-		"timer": BOMB_FUSE, "range": blast, "pierce": pierce, "solid": false,
-		"slide_dx": 0, "slide_dy": 0, "slide_cd": 0.0,
-	}
+	bombs[bid] = BombRecord.make(cell.x, cell.y, peer_id, blast, pierce)
 	if Net.is_online():
 		_rpc_spawn_bomb.rpc(bid, cell.x, cell.y, peer_id, blast, pierce)
 	else:
@@ -598,11 +536,7 @@ func _try_place_bomb(peer_id: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func _rpc_spawn_bomb(bid: int, x: int, y: int, owner: int, blast: int = BASE_BLAST, pierce: int = 0) -> void:
 	if not Net.is_authority():
-		bombs[bid] = {
-			"x": x, "y": y, "owner": owner,
-			"timer": BOMB_FUSE, "range": blast, "pierce": pierce, "solid": false,
-			"slide_dx": 0, "slide_dy": 0, "slide_cd": 0.0,
-		}
+		bombs[bid] = BombRecord.make(x, y, owner, blast, pierce)
 	_spawn_bomb_visual(bid, Vector2i(x, y))
 	if owner == _local_control_id():
 		_clear_bomb_ghost()
@@ -610,20 +544,11 @@ func _rpc_spawn_bomb(bid: int, x: int, y: int, owner: int, blast: int = BASE_BLA
 
 
 func _spawn_bomb_visual(bid: int, cell: Vector2i) -> void:
-	var existing := entities.get_node_or_null("Bomb_%d" % bid)
-	if existing:
-		return
-	var root := Node2D.new()
-	root.set_script(load("res://scripts/bomb.gd"))
-	root.setup(bid, cell, TILE)
-	entities.add_child(root)
+	_board.spawn_bomb(bid, cell)
 
 
 func _clear_bomb_visuals() -> void:
-	for c in entities.get_children():
-		var n := c as Node
-		if n.name.begins_with("Bomb_"):
-			n.queue_free()
+	_board.clear_bombs()
 
 
 func _tick_bombs(delta: float) -> void:
@@ -651,28 +576,13 @@ func _explode(bid: int) -> void:
 	var cleared_soft: Array[Vector2i] = computed.cleared_soft
 	for c in cleared_soft:
 		grid[c.y][c.x] = Cell.EMPTY
-	# Spawn power-ups on authority for cleared soft walls
-	var spawned: Array = [] # [{id,x,y,kind}, ...]
+	var spawned: Array = []
 	if Net.is_authority():
 		var rng := RandomNumberGenerator.new()
 		rng.randomize()
-		for c in cleared_soft:
-			if rng.randf() > POWERUP_CHANCE:
-				continue
-			var blocked := false
-			for p in powerups.values():
-				if int(p.x) == c.x and int(p.y) == c.y:
-					blocked = true
-					break
-			if blocked:
-				continue
-			if sudden.is_lethal(c):
-				continue
-			var kind: int = rng.randi_range(0, PKind.PIERCE) # BOMB / RANGE / SPEED / KICK / PIERCE
-			var pid := next_powerup_id
-			next_powerup_id += 1
-			powerups[pid] = {"x": c.x, "y": c.y, "kind": kind}
-			spawned.append({"id": pid, "x": c.x, "y": c.y, "kind": kind})
+		var drop: Dictionary = PowerupDrop.roll(cleared_soft, powerups, sudden.lethal, rng, next_powerup_id)
+		spawned = drop.spawned
+		next_powerup_id = int(drop.next_id)
 	# Chain reaction when blast hits another bomb
 	var chained: Array = []
 	for other_id in bombs.keys():
@@ -697,13 +607,7 @@ func _explode(bid: int) -> void:
 
 
 func _powerups_to_packed(spawned: Array) -> PackedInt32Array:
-	var out := PackedInt32Array()
-	for s in spawned:
-		out.append(int(s.id))
-		out.append(int(s.x))
-		out.append(int(s.y))
-		out.append(int(s.kind))
-	return out
+	return PowerupDrop.pack(spawned)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -763,58 +667,21 @@ func _destroy_powerups_in(hit_cells: Array[Vector2i], just_spawned: Array) -> vo
 
 
 func _apply_boom_visual(bid: int, hit_cells: Array[Vector2i]) -> void:
-	var node := entities.get_node_or_null("Bomb_%d" % bid)
-	if node:
-		node.queue_free()
-	if _sfx:
-		_sfx.play_boom()
-	for c in hit_cells:
-		var flash := Polygon2D.new()
-		flash.polygon = PackedVector2Array([
-			Vector2(4, 4), Vector2(TILE - 4, 4), Vector2(TILE - 4, TILE - 4), Vector2(4, TILE - 4)
-		])
-		flash.position = Vector2(c.x * TILE, c.y * TILE)
-		flash.color = Color(1.0, 0.75, 0.2, 0.9)
-		fx_layer.add_child(flash)
-		var core := Polygon2D.new()
-		core.polygon = PackedVector2Array([
-			Vector2(14, 14), Vector2(TILE - 14, 14), Vector2(TILE - 14, TILE - 14), Vector2(14, TILE - 14)
-		])
-		core.position = Vector2(c.x * TILE, c.y * TILE)
-		core.color = Color(1.0, 0.95, 0.6, 0.95)
-		fx_layer.add_child(core)
-		var t := get_tree().create_timer(0.28)
-		t.timeout.connect(func():
-			if is_instance_valid(flash):
-				flash.queue_free()
-			if is_instance_valid(core):
-				core.queue_free()
-		)
+	_board.play_boom(bid, hit_cells, _sfx)
 
-
-# --- Power-ups ----------------------------------------------------------------
 
 func _spawn_powerup_visual(pid: int, cell: Vector2i, kind: int) -> void:
-	if powerups_layer.get_node_or_null("Powerup_%d" % pid):
-		return
-	var root := Node2D.new()
-	root.set_script(load("res://scripts/powerup.gd"))
-	root.setup(pid, cell, kind, TILE)
-	powerups_layer.add_child(root)
+	_board.spawn_powerup(pid, cell, kind)
 
 
 func _clear_powerups() -> void:
 	powerups.clear()
-	if powerups_layer:
-		for c in powerups_layer.get_children():
-			(c as Node).queue_free()
+	_board.clear_powerup_nodes()
 
 
 func _remove_powerup(pid: int) -> void:
 	powerups.erase(pid)
-	var n := powerups_layer.get_node_or_null("Powerup_%d" % pid)
-	if n:
-		n.queue_free()
+	_board.remove_powerup(pid)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -845,75 +712,26 @@ func _try_pickup_at(peer_id: int, cell: Vector2i) -> void:
 
 
 func _stats_pack(peer_id: int) -> PackedInt32Array:
-	var st: Dictionary = player_stats.get(peer_id, _default_stats())
-	return PackedInt32Array([
-		int(st.get("bombs", BASE_BOMBS)),
-		int(st.get("range", BASE_BLAST)),
-		int(st.get("speed", 0)),
-		int(st.get("kick", 0)),
-		int(st.get("pierce", 0)),
-	])
+	return PlayerStats.pack(player_stats.get(peer_id, _default_stats()))
 
 
 func _apply_powerup(peer_id: int, kind: int) -> void:
-	if not player_stats.has(peer_id):
-		player_stats[peer_id] = _default_stats()
-	var st: Dictionary = player_stats[peer_id]
-	match kind:
-		PKind.BOMB:
-			st.bombs = mini(int(st.get("bombs", BASE_BOMBS)) + 1, MAX_BOMBS)
-		PKind.RANGE:
-			st.range = mini(int(st.get("range", BASE_BLAST)) + 1, MAX_RANGE)
-		PKind.SPEED:
-			st.speed = mini(int(st.get("speed", 0)) + 1, MAX_SPEED_LVL)
-		PKind.KICK:
-			st.kick = 1
-		PKind.PIERCE:
-			st.pierce = 1
-	player_stats[peer_id] = st
+	var st: Dictionary = player_stats.get(peer_id, _default_stats())
+	player_stats[peer_id] = PlayerStats.apply(st, kind)
 
 
 @rpc("authority", "call_local", "reliable")
 func _rpc_pickup(peer_id: int, powerup_id: int, kind: int, stats: PackedInt32Array) -> void:
 	_remove_powerup(powerup_id)
 	var prev: Dictionary = player_stats.get(peer_id, {})
-	if stats.size() >= 4:
-		var pierce := int(prev.get("pierce", 0))
-		if stats.size() >= 5:
-			pierce = int(stats[4])
-		player_stats[peer_id] = {
-			"bombs": stats[0],
-			"range": stats[1],
-			"speed": stats[2],
-			"kick": stats[3],
-			"pierce": pierce,
-			"move_cd": float(prev.get("move_cd", 0.0)),
-		}
-	elif stats.size() >= 3:
-		player_stats[peer_id] = {
-			"bombs": stats[0],
-			"range": stats[1],
-			"speed": stats[2],
-			"kick": int(prev.get("kick", 0)),
-			"pierce": int(prev.get("pierce", 0)),
-			"move_cd": float(prev.get("move_cd", 0.0)),
-		}
-	else:
-		_apply_powerup(peer_id, kind)
+	player_stats[peer_id] = PlayerStats.merge_pack(prev, kind, stats)
 	_refresh_stats_hud()
 	if _sfx:
 		_sfx.play_pickup()
 	if player_nodes.has(peer_id):
 		var n: Node2D = player_nodes[peer_id]
-		n.modulate = Color(1.4, 1.4, 1.2, 1.0)
-		var t := get_tree().create_timer(0.15)
-		t.timeout.connect(func():
-			if is_instance_valid(n) and alive.get(peer_id, false):
-				n.modulate = Color.WHITE
-		)
+		_board.pulse_player(n, func() -> bool: return alive.get(peer_id, false))
 
-
-# --- Sudden death -------------------------------------------------------------
 
 func _tick_sudden_death(delta: float) -> void:
 	var r: Dictionary = sudden.tick(delta, COLS, ROWS, grid, Cell.HARD)
@@ -955,9 +773,7 @@ func _apply_sudden_ring(cells: Array, bomb_ids: PackedInt32Array, powerup_ids: P
 	for i in bomb_ids.size():
 		var bid := int(bomb_ids[i])
 		bombs.erase(bid)
-		var bn := entities.get_node_or_null("Bomb_%d" % bid)
-		if bn:
-			bn.queue_free()
+		_board.free_bomb(bid)
 	for i in powerup_ids.size():
 		_remove_powerup(int(powerup_ids[i]))
 	if not cleared.is_empty():
@@ -996,8 +812,8 @@ func _kill_player(peer_id: int, reason: String = "") -> void:
 		_rpc_player_died.rpc(peer_id, reason)
 	else:
 		_show_death(peer_id)
-		if reason != "" and status_label:
-			status_label.text = reason
+		if reason != "":
+			_hud.set_status(reason)
 		_refresh_spectator_hud()
 	_check_winner()
 
@@ -1010,9 +826,8 @@ func _rpc_sudden_death_start(elapsed: float) -> void:
 
 func _on_sudden_death_started() -> void:
 	sudden.active = true
-	_sd_hud_key = ""
-	if status_label:
-		status_label.text = "⚠ 突然死亡！"
+	_hud.invalidate_sudden_death()
+	_hud.set_status("⚠ 突然死亡！")
 	_refresh_sudden_death_hud()
 
 
@@ -1021,7 +836,7 @@ func _rpc_sync_match_clock(elapsed: float, is_active: bool) -> void:
 	sudden.elapsed = elapsed
 	if is_active:
 		sudden.active = true
-	_sd_hud_key = ""
+	_hud.invalidate_sudden_death()
 	_refresh_sudden_death_hud()
 
 
@@ -1032,52 +847,16 @@ func _rpc_sudden_death_add(xy: PackedInt32Array, bomb_ids: PackedInt32Array, pow
 
 
 func _add_sd_visuals(cells: Array) -> void:
-	for c in cells:
-		var key := "%d,%d" % [c.x, c.y]
-		if _sd_visuals.has(key):
-			continue
-		var poly := Polygon2D.new()
-		poly.polygon = PackedVector2Array([
-			Vector2(2, 2), Vector2(TILE - 2, 2), Vector2(TILE - 2, TILE - 2), Vector2(2, TILE - 2)
-		])
-		poly.position = Vector2(c.x * TILE, c.y * TILE)
-		poly.color = Color(0.95, 0.25, 0.1, 0.72)
-		poly.z_index = 2
-		fx_layer.add_child(poly)
-		_sd_visuals[key] = poly
+	_board.add_sudden_death(cells)
 
 
 func _clear_sd_visuals() -> void:
-	for key in _sd_visuals.keys():
-		var n: Node = _sd_visuals[key]
-		if is_instance_valid(n):
-			n.queue_free()
-	_sd_visuals.clear()
+	_board.clear_sudden_death()
 
 
 func _refresh_sudden_death_hud() -> void:
-	if sd_label == null:
-		return
-	var key := "hide"
-	var text := ""
-	if not match_over:
-		if sudden.active:
-			key = "active"
-			text = "突然死亡 · 安全区收缩中"
-		else:
-			var left: float = maxf(0.0, SuddenDeath.START_AT - sudden.elapsed)
-			if left <= 30.0 and left > 0.0:
-				key = "cd:%d" % int(ceili(left))
-				text = "突然死亡倒计时 %d 秒" % int(ceili(left))
-	if key == _sd_hud_key:
-		return
-	_sd_hud_key = key
-	sd_label.visible = key != "hide"
-	if key != "hide":
-		sd_label.text = text
+	_hud.refresh_sudden_death(sudden.active, sudden.elapsed, SuddenDeath.START_AT, match_over)
 
-
-# --- Combat / end -------------------------------------------------------------
 
 func _kill_players_in(hit_cells: Array[Vector2i]) -> void:
 	for peer_id in player_nodes.keys():
@@ -1092,8 +871,8 @@ func _kill_players_in(hit_cells: Array[Vector2i]) -> void:
 func _rpc_player_died(peer_id: int, reason: String = "") -> void:
 	alive[peer_id] = false
 	_show_death(peer_id)
-	if reason != "" and status_label and not match_over:
-		status_label.text = reason
+	if reason != "" and not match_over:
+		_hud.set_status(reason)
 	_refresh_spectator_hud()
 
 
@@ -1110,54 +889,31 @@ func _show_death(peer_id: int) -> void:
 func _check_winner() -> void:
 	if match_over:
 		return
-	var living: Array = []
-	for id in alive.keys():
-		if alive[id] and GameState.players.has(int(id)):
-			living.append(id)
-	if living.size() <= 1 and GameState.players.size() >= 1:
-		if GameState.players.size() == 1 and living.size() == 1:
-			return
-		match_over = true
-		var winner_name := ""
-		if living.size() == 1:
-			var wid: int = living[0]
-			winner_name = str(GameState.players.get(wid, {}).get("name", wid))
-		if Net.is_online():
-			_rpc_match_over.rpc(winner_name)
-		else:
-			_show_end_screen(winner_name)
+	var result: Dictionary = MatchEnd.outcome(alive, GameState.players)
+	if not bool(result.finished):
+		return
+	match_over = true
+	var winner_name := str(result.winner_name)
+	if Net.is_online():
+		_rpc_match_over.rpc(winner_name)
+	else:
+		_show_end_screen(winner_name)
 
 
 func _show_end_screen(winner_name: String) -> void:
-	if winner_name.is_empty():
-		status_label.text = "对局结束：平局"
-		end_title.text = "对局结束\n平局"
-	else:
-		status_label.text = "对局结束：%s 获胜！" % winner_name
-		end_title.text = "对局结束\n%s 获胜！" % winner_name
-	end_panel.visible = true
+	_hud.show_end(winner_name)
 	_refresh_spectator_hud()
 	_refresh_rematch_button()
 
 
 func _refresh_rematch_button() -> void:
-	if rematch_btn == null:
-		return
 	var me := _local_control_id()
 	var allowed := can_request_rematch(Net.is_online(), me, GameState.host_peer_id, GameState.players.size())
-	rematch_btn.visible = allowed
-	rematch_btn.disabled = not allowed
-	rematch_btn.text = "再来一局"
+	_hud.refresh_rematch(allowed)
 
 
-## Offline solo can rematch alone. Online only the host can, and only with 2+ players left.
-## Dedicated server has no local player (peer_id 0), so its own button stays hidden.
 static func can_request_rematch(is_online: bool, peer_id: int, host_id: int, player_count: int) -> bool:
-	if peer_id <= 0:
-		return false
-	if not is_online:
-		return player_count >= 1
-	return peer_id == host_id and player_count >= 2
+	return MatchEnd.can_request_rematch(is_online, peer_id, host_id, player_count)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -1212,7 +968,7 @@ func _restart_match() -> void:
 		_rpc_setup_match.rpc(soft_seed, GameState.players, map_id)
 	else:
 		_rpc_setup_match(soft_seed, GameState.players, map_id)
-	status_label.text = "再来一局 · 地图：%s" % Arena.map_name(map_id)
+	_hud.set_status("再来一局 · 地图：%s" % Arena.map_name(map_id))
 
 
 func _on_back() -> void:
@@ -1261,24 +1017,18 @@ func _on_match_peer_out(id: int) -> void:
 ## Drop a peer who left mid-match. Kill them before erasing the roster entry so a
 ## 2-player game still counts as a win, not as the solo "don't end" case.
 func _forfeit_peer(id: int) -> void:
-	if id <= 0:
+	var plan: Dictionary = MatchEnd.forfeit_plan(GameState.players, alive, id)
+	if bool(plan.skip):
 		return
-	if not GameState.players.has(id) and not alive.get(id, false):
-		return
-	var others := 0
-	for pid in GameState.players.keys():
-		if int(pid) != id:
-			others += 1
-	if others <= 0:
+	if bool(plan.empty):
 		GameState.players.erase(id)
 		alive.erase(id)
 		GameState.recompute_host()
 		if Net.is_dedicated():
 			_return_dedicated_to_lobby()
 		return
-	if alive.get(id, false):
-		var nick := str(GameState.players.get(id, {}).get("name", "玩家"))
-		_kill_player(id, "%s 已离开" % nick)
+	if bool(plan.kill):
+		_kill_player(id, str(plan.reason))
 	GameState.players.erase(id)
 	alive.erase(id)
 	GameState.recompute_host()
@@ -1299,41 +1049,21 @@ func _return_dedicated_to_lobby() -> void:
 
 
 func _refresh_stats_hud() -> void:
-	if stats_label == null:
-		return
 	var my_id := _local_control_id()
-	if my_id == 0 or not player_stats.has(my_id):
-		if my_id == 0:
-			stats_label.text = ""
-			return
+	if my_id != 0 and not player_stats.has(my_id):
 		player_stats[my_id] = _default_stats()
-	var st: Dictionary = player_stats[my_id]
-	var b: int = int(st.get("bombs", BASE_BOMBS))
-	var r: int = int(st.get("range", BASE_BLAST))
-	var s: int = int(st.get("speed", 0))
-	var k: int = int(st.get("kick", 0))
-	var p: int = int(st.get("pierce", 0))
-	var placed := _count_bombs_owned(my_id)
-	var kick_txt := "开" if k > 0 else "关"
-	var pierce_txt := "开" if p > 0 else "关"
-	stats_label.text = "炸弹 %d/%d  ·  火力 %d  ·  移速 Lv%d  ·  踢弹 %s  ·  穿透 %s" % [placed, b, r, s, kick_txt, pierce_txt]
+	var placed := 0
+	if my_id != 0:
+		placed = _count_bombs_owned(my_id)
+	_hud.refresh_stats(my_id, player_stats.get(my_id, {}), placed)
 
 
 func _refresh_spectator_hud() -> void:
-	if spec_label == null:
-		return
 	var my_id := _local_control_id()
-	if my_id == 0:
-		spec_label.visible = false
-		return
-	if match_over:
-		spec_label.visible = false
-		return
-	if alive.get(my_id, true):
-		spec_label.visible = false
-		return
-	spec_label.visible = true
-	spec_label.text = "已阵亡 · 观战中"
+	var is_alive := true
+	if my_id != 0:
+		is_alive = bool(alive.get(my_id, true))
+	_hud.refresh_spectator(my_id, match_over, is_alive)
 
 
 func _uses_prediction() -> bool:
@@ -1341,26 +1071,21 @@ func _uses_prediction() -> bool:
 
 
 func _pred_tip() -> Vector2i:
-	if not _pred_cells.is_empty():
-		return _pred_cells[_pred_cells.size() - 1]
+	var fallback := Vector2i.ZERO
 	var my_id := _local_control_id()
 	if player_nodes.has(my_id):
-		return player_nodes[my_id].get_meta("cell")
-	return Vector2i.ZERO
+		fallback = player_nodes[my_id].get_meta("cell")
+	return _predict.tip(fallback)
 
 
 func _predict_step(dir: Vector2i) -> void:
-	if _pred_cells.is_empty():
-		var my_id := _local_control_id()
-		if not player_nodes.has(my_id):
-			return
-		_pred_cells = [player_nodes[my_id].get_meta("cell")]
-	var nxt: Vector2i = _pred_tip() + dir
-	if not _can_predict_step(nxt):
+	var my_id := _local_control_id()
+	if not player_nodes.has(my_id):
 		return
-	_pred_cells.append(nxt)
-	var node: Node2D = player_nodes[_local_control_id()]
-	node.position = _cell_to_pos(nxt)
+	var origin: Vector2i = player_nodes[my_id].get_meta("cell")
+	if not _predict.push_step(dir, origin, _can_predict_step):
+		return
+	player_nodes[my_id].position = _cell_to_pos(_predict.tip(origin))
 
 
 ## Empty tiles only. Kicks and other bombs wait for the host, then snap.
@@ -1379,19 +1104,7 @@ func _can_predict_step(dst: Vector2i) -> bool:
 func _show_bomb_ghost(cell: Vector2i) -> void:
 	if not _can_predict_bomb(cell):
 		return
-	_clear_bomb_ghost()
-	var gen := _ghost_gen
-	var root := Node2D.new()
-	root.set_script(load("res://scripts/bomb.gd"))
-	root.setup(0, cell, TILE)
-	root.name = "BombGhost"
-	entities.add_child(root)
-	_ghost_node = root
-	var timer := get_tree().create_timer(0.45)
-	timer.timeout.connect(func() -> void:
-		if gen == _ghost_gen and is_inside_tree():
-			_clear_bomb_ghost()
-	)
+	_predict.show_ghost(self, entities, cell, TILE)
 
 
 func _can_predict_bomb(cell: Vector2i) -> bool:
@@ -1406,13 +1119,7 @@ func _can_predict_bomb(cell: Vector2i) -> bool:
 
 
 func _clear_bomb_ghost() -> void:
-	_ghost_gen += 1
-	if is_instance_valid(_ghost_node):
-		# Detach now so the next ghost keeps the "BombGhost" name this frame.
-		if _ghost_node.get_parent():
-			_ghost_node.get_parent().remove_child(_ghost_node)
-		_ghost_node.queue_free()
-	_ghost_node = null
+	_predict.clear_ghost()
 
 
 func _tick_bot(_delta: float) -> void:

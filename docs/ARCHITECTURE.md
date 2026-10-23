@@ -71,6 +71,12 @@ autoload Net / GameState   ← 仅连接与大厅快照
 - `KickRules` — 穿弹 / 踢弹判定、滑行阻挡。踢进已有火圈由 `game_root` 立即引爆，走进这场爆炸的人会阵亡；缩圈盖住的炸弹被吞掉，不额外爆炸
 - `MatchBot` — 单机对手。只在 `GameState.solo_bot` 且离线权威端由 `game_root` 调用；危险格上先逃走，有退路才炸软墙或对手，否则走向软墙 / 玩家。联机对局不生成电脑
 - `MovePredict` — 客机移动预演的确认链。下标 0 是主机已确认的格子，后面是提前画出的步；主机重复确认链头表示这几步被拒绝，Pawn 拉回
+- `PlayerStats` — 属性默认值、拾取加减、上限、冷却、封包。短包保留本地穿透
+- `BombRecord` — 炸弹字典的字段形状与持有数量
+- `PowerupDrop` — 软墙掉落（概率、占格、致死格）。随机数由调用方传入
+- `MatchEnd` — 胜负 / 平局 / 再来一局资格 / 中途退出是否判负。场景切换仍在 `game_root`
+
+画面不进 `match/`：`MatchBoard` 画格子和实体，`MatchHud` 画文字和结算面板，`ClientPredict` 保存客机预演链和影子炸弹。`@rpc` 仍只在 `game_root`。
 
 ## 大厅 / 房间
 

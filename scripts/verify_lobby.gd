@@ -27,6 +27,8 @@ func _run() -> void:
 func _check_rules(gs) -> bool:
 	if not _check_password_full_and_match(gs):
 		return false
+	if not _check_lobby_directory(gs):
+		return false
 	if not _check_host_ready_and_map(gs):
 		return false
 	if not _check_snapshot(gs):
@@ -101,6 +103,43 @@ func _check_password_full_and_match(gs) -> bool:
 		push_error("[verify_lobby] FAIL: room cap")
 		return false
 	print("[verify_lobby] password / in-match / full OK")
+	return true
+
+
+
+func _check_lobby_directory(gs) -> bool:
+	gs.reset_lobby()
+	if gs.try_register(2, "甲", "secret") != "":
+		push_error("[verify_lobby] FAIL: create for directory")
+		return false
+	var code_a := str(gs.room_code)
+	if gs.try_register(4, "乙", "") != "":
+		push_error("[verify_lobby] FAIL: second room for directory")
+		return false
+	var code_b := str(gs.room_code)
+	var dir: Array = gs.make_lobby_directory()
+	if dir.size() != 2:
+		push_error("[verify_lobby] FAIL: directory size %d" % dir.size())
+		return false
+	var by_code := {}
+	for e in dir:
+		by_code[str(e.code)] = e
+	if not by_code.has(code_a) or not bool(by_code[code_a].locked) or int(by_code[code_a].count) != 1:
+		push_error("[verify_lobby] FAIL: locked room summary")
+		return false
+	if not by_code.has(code_b) or bool(by_code[code_b].locked):
+		push_error("[verify_lobby] FAIL: open room summary")
+		return false
+	for e in dir:
+		if e.has("room_password") or str(e).find("secret") >= 0:
+			push_error("[verify_lobby] FAIL: password leaked in directory")
+			return false
+	gs.apply_lobby_directory(dir)
+	if gs.lobby_directory.size() != 2:
+		push_error("[verify_lobby] FAIL: apply directory")
+		return false
+	print("[verify_lobby] lobby directory OK")
+	gs.reset_lobby()
 	return true
 
 
@@ -225,8 +264,11 @@ func _check_sources() -> bool:
 	if lobby_src.find("_maybe_autostart") >= 0 or lobby_src.find("自动开局") >= 0:
 		push_error("[verify_lobby] FAIL: auto-start still mentioned in lobby")
 		return false
-	if scene_src.find("进入房间") < 0 or scene_src.find("单机试试") < 0 or scene_src.find("本机开房") < 0 or scene_src.find("房间码") < 0:
+	if scene_src.find("连接服务器") < 0 or scene_src.find("新建房间") < 0 or scene_src.find("单机试试") < 0 or scene_src.find("本机开房") < 0:
 		push_error("[verify_lobby] FAIL: login copy missing from lobby.tscn")
+		return false
+	if scene_src.find("RoomListScroll") < 0 or state_src.find("_rpc_sync_lobby_directory") < 0:
+		push_error("[verify_lobby] FAIL: room list UI or directory RPC missing")
 		return false
 	if lobby_src.find("将连接本站游戏服") < 0 or lobby_src.find("OS.has_feature(\"web\")") < 0:
 		push_error("[verify_lobby] FAIL: web host/address folding missing")
@@ -250,7 +292,7 @@ func _check_lobby_ui(gs) -> bool:
 	var lobby = packed.instantiate()
 	root.add_child(lobby)
 	await process_frame
-	if lobby.enter_btn.text != "进入房间" or lobby.solo_btn.text != "单机试试" or lobby.host_btn.text != "本机开房":
+	if lobby.enter_btn.text != "连接服务器" or lobby.create_room_btn.text != "新建房间" or lobby.solo_btn.text != "单机试试" or lobby.host_btn.text != "本机开房":
 		push_error("[verify_lobby] FAIL: button copy")
 		return false
 	if not lobby.host_btn.visible or not lobby.port_row.visible:
@@ -272,8 +314,22 @@ func _check_lobby_ui(gs) -> bool:
 	if lobby.map_option.item_count != 4 or lobby.map_option.get_item_text(0) != "经典" or lobby.map_option.get_item_text(3) != "迷宫":
 		push_error("[verify_lobby] FAIL: map option items")
 		return false
-	if lobby.join_code_edit.placeholder_text.find("留空") < 0:
-		push_error("[verify_lobby] FAIL: room code placeholder")
+	if lobby.room_list_scroll == null or lobby.room_list == null:
+		push_error("[verify_lobby] FAIL: room list nodes missing")
+		return false
+	if int(lobby.room_list_scroll.custom_minimum_size.y) < 120:
+		push_error("[verify_lobby] FAIL: room list should show ~3 rows")
+		return false
+	gs.apply_lobby_directory([
+		{"code": "ABCD", "count": 1, "max": 4, "in_match": false, "locked": false, "who": "甲"},
+		{"code": "EFGH", "count": 2, "max": 4, "in_match": true, "locked": true, "who": "乙, 丙"},
+		{"code": "IJKL", "count": 3, "max": 4, "in_match": false, "locked": true, "who": "丁"},
+		{"code": "MNOP", "count": 4, "max": 4, "in_match": false, "locked": false, "who": "满"},
+	])
+	lobby._browsing = true
+	lobby._refresh_room_list()
+	if lobby.room_list.get_child_count() != 4:
+		push_error("[verify_lobby] FAIL: room list rows %d" % lobby.room_list.get_child_count())
 		return false
 	lobby.name_edit.text = ""
 	lobby._commit_nickname()

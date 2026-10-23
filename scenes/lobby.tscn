@@ -75,7 +75,7 @@ horizontal_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
-text = "房间码留空会新开一间"
+text = "连接后选择房间，或新建一间"
 horizontal_alignment = 1
 
 [node name="LoginBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack"]
@@ -99,20 +99,36 @@ size_flags_horizontal = 3
 placeholder_text = "摸鱼人"
 max_length = 16
 
-[node name="CodeRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
+[node name="RoomListLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+text = "现有房间"
 
-[node name="CodeLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/CodeRow"]
-custom_minimum_size = Vector2(88, 0)
+[node name="RoomListScroll" type="ScrollContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 132)
 layout_mode = 2
-text = "房间码"
+size_flags_horizontal = 3
+horizontal_scroll_mode = 0
 
-[node name="JoinCodeEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/CodeRow"]
+[node name="RoomList" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/RoomListScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "留空则新开一间"
+theme_override_constants/separation = 4
+
+[node name="CreateRoomBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "新建房间"
+
+[node name="JoinCodeEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+placeholder_text = "内部保留"
 max_length = 8
 
 [node name="PwRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
@@ -128,13 +144,13 @@ text = "房间密码"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "没有就留空"
+placeholder_text = "带锁房间再填"
 max_length = 32
 
 [node name="EnterBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "进入房间"
+text = "连接服务器"
 
 [node name="SoloBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox"]
 unique_name_in_owner = true
@@ -200,7 +216,7 @@ placeholder_text = "127.0.0.1:9080"
 unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 3
-text = "填写昵称进入房间，或本机开房"
+text = "填写昵称后连接，再选房间或新建"
 
 [node name="RoomBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack"]
 unique_name_in_owner = true

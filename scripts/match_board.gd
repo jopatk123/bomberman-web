@@ -2,7 +2,7 @@ class_name MatchBoard
 extends RefCounted
 ## Map tiles, pawn/bomb/powerup nodes, and short-lived blast or sudden-death polygons.
 ## Does not decide movement, blasts, or wins.
-## Pixel tiles (floor/hard/soft) + entity sprites on player/bomb. Blast and sudden-death FX stay polygons.
+## Pixel tiles + entity/blast/soft-break sprites. Sudden-death FX stay polygons.
 
 
 const TILE := 48
@@ -10,6 +10,15 @@ const TEX_FLOOR_A: Texture2D = preload("res://assets/art/pixel/tiles/floor_a.png
 const TEX_FLOOR_B: Texture2D = preload("res://assets/art/pixel/tiles/floor_b.png")
 const TEX_HARD: Texture2D = preload("res://assets/art/pixel/tiles/hard.png")
 const TEX_SOFT: Texture2D = preload("res://assets/art/pixel/tiles/soft.png")
+const TEX_BLAST_CENTER: Texture2D = preload("res://assets/art/pixel/fx/blast_center.png")
+const TEX_BLAST_H: Texture2D = preload("res://assets/art/pixel/fx/blast_h.png")
+const TEX_BLAST_V: Texture2D = preload("res://assets/art/pixel/fx/blast_v.png")
+const TEX_SOFT_BREAK: Array[Texture2D] = [
+	preload("res://assets/art/pixel/fx/soft_break_0.png"),
+	preload("res://assets/art/pixel/fx/soft_break_1.png"),
+	preload("res://assets/art/pixel/fx/soft_break_2.png"),
+]
+
 
 var map_layer: Node2D
 var entities: Node2D
@@ -148,32 +157,67 @@ func remove_powerup(pid: int) -> void:
 		n.queue_free()
 
 
-func play_boom(bid: int, hit_cells: Array, sfx: Node) -> void:
+func play_boom(bid: int, hit_cells: Array, sfx: Node, cleared_soft: Array = []) -> void:
 	free_bomb(bid)
 	if sfx and sfx.has_method("play_boom"):
 		sfx.play_boom()
+	var hit_set: Dictionary = {}
 	for c in hit_cells:
-		var flash := Polygon2D.new()
-		flash.polygon = PackedVector2Array([
-			Vector2(4, 4), Vector2(TILE - 4, 4), Vector2(TILE - 4, TILE - 4), Vector2(4, TILE - 4)
-		])
-		flash.position = Vector2(c.x * TILE, c.y * TILE)
-		flash.color = Color(1.0, 0.75, 0.2, 0.9)
-		fx_layer.add_child(flash)
-		var core := Polygon2D.new()
-		core.polygon = PackedVector2Array([
-			Vector2(14, 14), Vector2(TILE - 14, 14), Vector2(TILE - 14, TILE - 14), Vector2(14, TILE - 14)
-		])
-		core.position = Vector2(c.x * TILE, c.y * TILE)
-		core.color = Color(1.0, 0.95, 0.6, 0.95)
-		fx_layer.add_child(core)
-		var timer := fx_layer.get_tree().create_timer(0.28)
+		hit_set[c] = true
+	var center: Vector2i = hit_cells[0] if not hit_cells.is_empty() else Vector2i(-1, -1)
+	for c in hit_cells:
+		var spr := Sprite2D.new()
+		spr.texture = _blast_tex_for(c, center, hit_set)
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.centered = true
+		spr.position = cell_to_pos(c)
+		spr.z_index = 3
+		fx_layer.add_child(spr)
+		var timer := fx_layer.get_tree().create_timer(0.32)
 		timer.timeout.connect(func() -> void:
-			if is_instance_valid(flash):
-				flash.queue_free()
-			if is_instance_valid(core):
-				core.queue_free()
+			if is_instance_valid(spr):
+				spr.queue_free()
 		)
+	for c in cleared_soft:
+		_play_soft_shatter(c)
+
+
+func _blast_tex_for(cell: Vector2i, center: Vector2i, hit_set: Dictionary) -> Texture2D:
+	if cell == center:
+		return TEX_BLAST_CENTER
+	if cell.y == center.y:
+		return TEX_BLAST_H
+	if cell.x == center.x:
+		return TEX_BLAST_V
+	# Fallback if a weird diagonal ever appears.
+	var left := hit_set.has(cell + Vector2i(-1, 0))
+	var right := hit_set.has(cell + Vector2i(1, 0))
+	if left or right:
+		return TEX_BLAST_H
+	return TEX_BLAST_V
+
+
+func _play_soft_shatter(cell: Vector2i) -> void:
+	var spr := Sprite2D.new()
+	spr.texture = TEX_SOFT_BREAK[0]
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.centered = true
+	spr.position = cell_to_pos(cell)
+	spr.z_index = 4
+	fx_layer.add_child(spr)
+	var tree := fx_layer.get_tree()
+	for i in range(1, TEX_SOFT_BREAK.size()):
+		var t := tree.create_timer(0.08 * float(i))
+		var idx := i
+		t.timeout.connect(func() -> void:
+			if is_instance_valid(spr):
+				spr.texture = TEX_SOFT_BREAK[idx]
+		)
+	var end_t := tree.create_timer(0.08 * float(TEX_SOFT_BREAK.size()) + 0.06)
+	end_t.timeout.connect(func() -> void:
+		if is_instance_valid(spr):
+			spr.queue_free()
+	)
 
 
 func pulse_player(node: Node2D, still_alive: Callable) -> void:

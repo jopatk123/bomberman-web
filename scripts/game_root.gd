@@ -659,7 +659,7 @@ func _explode(bid: int) -> void:
 	if Net.is_online():
 		_notify_room("_rpc_bomb_boom", [bid, BlastRules.cells_to_packed(hit_cells), clear_pack, spawn_pack])
 	else:
-		_apply_boom_visual(bid, hit_cells)
+		_apply_boom_visual(bid, hit_cells, cleared_soft)
 		_repaint_cells(cleared_soft)
 		for s in spawned:
 			_spawn_powerup_visual(int(s.id), Vector2i(int(s.x), int(s.y)), int(s.kind))
@@ -684,8 +684,9 @@ func _rpc_bomb_boom(bid: int, hit_xy: PackedInt32Array, clear_xy: PackedInt32Arr
 		var y: int = clear_xy[i + 1]
 		if y >= 0 and y < ROWS and x >= 0 and x < COLS:
 			grid[y][x] = Cell.EMPTY
-	_apply_boom_visual(bid, hit_cells)
-	_repaint_cells(BlastRules.packed_to_cells(clear_xy))
+	var cleared_soft: Array[Vector2i] = BlastRules.packed_to_cells(clear_xy)
+	_apply_boom_visual(bid, hit_cells, cleared_soft)
+	_repaint_cells(cleared_soft)
 	for i in range(0, spawn_xy.size(), 4):
 		var pid: int = spawn_xy[i]
 		var px: int = spawn_xy[i + 1]
@@ -731,8 +732,8 @@ func _destroy_powerups_in(hit_cells: Array[Vector2i], just_spawned: Array) -> vo
 			_notify_room("_rpc_remove_powerup", [pid])
 
 
-func _apply_boom_visual(bid: int, hit_cells: Array[Vector2i]) -> void:
-	_board.play_boom(bid, hit_cells, _sfx)
+func _apply_boom_visual(bid: int, hit_cells: Array[Vector2i], cleared_soft: Array = []) -> void:
+	_board.play_boom(bid, hit_cells, _sfx, cleared_soft)
 
 
 func _spawn_powerup_visual(pid: int, cell: Vector2i, kind: int) -> void:

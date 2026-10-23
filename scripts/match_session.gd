@@ -35,8 +35,10 @@ func leave(tree: SceneTree, notice: String) -> void:
 	if leaving or Net.is_dedicated():
 		return
 	leaving = true
+	var code := GameState.room_code
 	if Net.is_online():
 		Net.close()
+	MatchHost.close_room(code)
 	GameState.reset_lobby()
 	GameState.pending_notice = notice
 	tree.change_scene_to_file(LOBBY)
@@ -49,24 +51,37 @@ func on_peer_out(id: int, forfeit: Callable) -> void:
 
 
 ## `kill` is (peer_id, reason). `refresh_rematch` runs when the match had already ended.
-func forfeit_peer(tree: SceneTree, id: int, alive: Dictionary, match_over: bool, kill: Callable, refresh_rematch: Callable) -> void:
-	var plan: Dictionary = MatchEnd.forfeit_plan(GameState.players, alive, id)
+## Empty `roster` means the flat GameState.players mirror (offline tests and solo).
+func forfeit_peer(
+	tree: SceneTree,
+	id: int,
+	alive: Dictionary,
+	match_over: bool,
+	kill: Callable,
+	refresh_rematch: Callable,
+	roster: Dictionary = {},
+	code: String = "",
+	on_empty: Callable = Callable()
+) -> void:
+	var players: Dictionary = GameState.players if roster.is_empty() else roster
+	var plan: Dictionary = MatchEnd.forfeit_plan(players, alive, id)
 	if bool(plan.skip):
 		return
 	if bool(plan.empty):
-		GameState.players.erase(id)
+		players.erase(id)
 		alive.erase(id)
-		GameState.recompute_host()
+		GameState.finish_forfeit(players, code, false)
 		if Net.is_dedicated():
-			return_dedicated(tree)
+			if on_empty.is_valid():
+				on_empty.call()
+			else:
+				return_dedicated(tree)
 		return
 	if bool(plan.kill):
 		kill.call(id, str(plan.reason))
-	GameState.players.erase(id)
+	players.erase(id)
 	alive.erase(id)
-	GameState.recompute_host()
-	if Net.is_online():
-		GameState.broadcast_room()
+	GameState.finish_forfeit(players, code, true)
 	if match_over:
 		refresh_rematch.call()
 

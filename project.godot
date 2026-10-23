@@ -13,6 +13,7 @@ config/icon="res://icon.svg"
 
 Net="*res://autoload/Net.gd"
 GameState="*res://autoload/GameState.gd"
+MatchHost="*res://autoload/MatchHost.gd"
 
 [display]
 

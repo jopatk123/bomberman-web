@@ -1,5 +1,5 @@
 extends Control
-## Login + waiting room. One global session; room rules/RPCs live on GameState.
+## Login + waiting room. Room codes live on GameState; this script only wires the UI.
 
 const _NICK_PATH := "user://nickname.txt"
 const _NICK_LS := "bomberman_nickname"
@@ -7,6 +7,7 @@ const _NICK_LS := "bomberman_nickname"
 @onready var subtitle: Label = %Subtitle
 @onready var login_box: VBoxContainer = %LoginBox
 @onready var name_edit: LineEdit = %NameEdit
+@onready var join_code_edit: LineEdit = %JoinCodeEdit
 @onready var join_password_edit: LineEdit = %JoinPasswordEdit
 @onready var port_edit: LineEdit = %PortEdit
 @onready var address_edit: LineEdit = %AddressEdit
@@ -20,6 +21,8 @@ const _NICK_LS := "bomberman_nickname"
 @onready var login_status: Label = %LoginStatus
 @onready var room_box: VBoxContainer = %RoomBox
 @onready var room_status: Label = %RoomStatus
+@onready var room_code_label: Label = %RoomCodeLabel
+@onready var room_index: Label = %RoomIndex
 @onready var server_note: Label = %ServerNote
 @onready var room_password_edit: LineEdit = %RoomPasswordEdit
 @onready var room_access: Label = %RoomAccess
@@ -63,7 +66,7 @@ func _ready() -> void:
 func _enter_initial_screen() -> void:
 	var notice := GameState.consume_notice()
 	if Net.is_dedicated():
-		if GameState.players.is_empty():
+		if GameState.rooms.is_empty():
 			_ui_lock = true
 			GameState.reset_lobby()
 			_ui_lock = false
@@ -72,8 +75,9 @@ func _enter_initial_screen() -> void:
 	if Net.is_server:
 		_commit_nickname()
 		_ui_lock = true
-		GameState.reset_lobby()
-		GameState.register_local_as_host()
+		if GameState.rooms.is_empty():
+			GameState.reset_lobby()
+			GameState.try_register(maxi(Net.get_peer_id(), 1), GameState.local_player_name, "", "")
 		_ui_lock = false
 		_show_room()
 		return
@@ -82,8 +86,8 @@ func _enter_initial_screen() -> void:
 
 func _default_login_hint() -> String:
 	if _web:
-		return "填写昵称，进入本站房间"
-	return "填写昵称进入房间，或本机开房"
+		return "填写昵称。房间码留空会新开一间"
+	return "填写昵称。房间码留空会新开一间，或本机开房"
 
 
 func _apply_platform_chrome() -> void:
@@ -178,8 +182,7 @@ func _on_host_pressed() -> void:
 		return
 	_ui_lock = true
 	GameState.reset_lobby()
-	GameState.room_password = join_password_edit.text.strip_edges()
-	GameState.register_local_as_host()
+	GameState.try_register(maxi(Net.get_peer_id(), 1), GameState.local_player_name, join_password_edit.text, "")
 	_ui_lock = false
 	_show_room()
 
@@ -211,7 +214,9 @@ func _on_connected() -> void:
 	_pending_register = true
 	login_status.text = "已连接，登记中…"
 	_arm_register_timeout()
-	GameState._rpc_register_player.rpc_id(1, GameState.local_player_name, join_password_edit.text.strip_edges())
+	GameState._rpc_register_player.rpc_id(
+		1, GameState.local_player_name, join_password_edit.text.strip_edges(), join_code_edit.text
+	)
 
 
 func _on_fail() -> void:
@@ -253,13 +258,10 @@ func _show_closed(message: String) -> void:
 func _on_peer_out(id: int) -> void:
 	# Match scene owns the forfeit once it is current. Lobby only drops the roster
 	# while it is still the current scene (including the frame before the swap).
-	var current := get_tree().current_scene
-	if GameState.in_match and current != self:
+	if GameState.peer_in_match(id):
 		return
-	if Net.is_authority() and GameState.players.has(id):
-		GameState.players.erase(id)
-		GameState.recompute_host()
-		GameState.broadcast_room()
+	if Net.is_authority():
+		GameState.drop_waiting_peer(id)
 		return
 	if room_box.visible:
 		_refresh_room()
@@ -270,6 +272,8 @@ func _on_room_changed() -> void:
 		return
 	if Net.is_dedicated():
 		_show_room()
+		return
+	if GameState.in_match and _local_in_room():
 		return
 	if _local_in_room():
 		_pending_register = false
@@ -355,9 +359,13 @@ func _push_password() -> void:
 
 func _on_match_starting() -> void:
 	if Net.is_dedicated():
-		_go_to_game()
+		_show_room()
 		return
 	if Net.is_online() and not GameState.players.has(Net.get_peer_id()):
+		return
+	if Net.is_online():
+		MatchHost.open_room(GameState.room_code)
+		visible = false
 		return
 	_go_to_game()
 
@@ -370,7 +378,7 @@ func _show_login(message: String) -> void:
 	login_box.visible = true
 	room_box.visible = false
 	subtitle.visible = true
-	subtitle.text = "同一间房，准备好再开"
+	subtitle.text = "房间码留空会新开一间"
 	_set_login_busy(false)
 	if not message.is_empty():
 		login_status.text = message
@@ -396,6 +404,19 @@ func _refresh_room() -> void:
 	var in_room := _local_in_room()
 	var dedicated := Net.is_dedicated()
 	var base := "等待中 %d/%d" % [count, GameState.MAX_PLAYERS]
+	if GameState.room_code != "":
+		room_code_label.text = "房间码 %s" % GameState.room_code
+		room_code_label.visible = not dedicated
+	else:
+		room_code_label.text = "房间码"
+		room_code_label.visible = false
+	room_index.visible = dedicated
+	if dedicated:
+		room_index.text = GameState.room_index_text()
+		count = 0
+		for room in GameState.rooms.values():
+			count += room.players.size()
+		base = "房间 %d 间 · %d 人" % [GameState.rooms.size(), count]
 	if dedicated and not in_room:
 		room_status.text = "%s · 专用服务器" % base
 	elif host:

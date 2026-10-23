@@ -39,35 +39,66 @@ func _check_rules(gs) -> bool:
 
 func _check_password_full_and_match(gs) -> bool:
 	gs.reset_lobby()
-	gs.room_password = "fish"
-	var bad: String = gs.try_register(2, "甲", "nope")
-	if bad != gs.MSG_BAD_PASSWORD or not gs.players.is_empty():
-		push_error("[verify_lobby] FAIL: bad password was accepted (%s)" % bad)
+	if RoomCodes.normalize("ab3k") != "AB3K" or RoomCodes.normalize("ab") != "" or RoomCodes.normalize("OOOO") != "":
+		push_error("[verify_lobby] FAIL: room code normalize")
 		return false
-	var ok: String = gs.try_register(2, "  ", " fish ")
-	if ok != "" or str(gs.players[2]["name"]) != "摸鱼人":
+	var created: String = gs.try_register(2, "  ", " fish ")
+	if created != "" or str(gs.players[2]["name"]) != "摸鱼人" or gs.room_password != "fish":
 		push_error("[verify_lobby] FAIL: empty nick / padded password")
 		return false
-	if int(gs.host_peer_id) != 2:
-		push_error("[verify_lobby] FAIL: first player should be host")
+	var code := str(gs.room_code)
+	if code.length() != 4 or int(gs.host_peer_id) != 2:
+		push_error("[verify_lobby] FAIL: first player should be host of %s" % code)
 		return false
+	var bad: String = gs.try_register(3, "乙", "nope", code)
+	if bad != gs.MSG_BAD_PASSWORD or gs.players.has(3):
+		push_error("[verify_lobby] FAIL: bad password was accepted (%s)" % bad)
+		return false
+	if gs.try_register(3, "乙", "fish", code.to_lower()) != "" or not gs.players.has(3):
+		push_error("[verify_lobby] FAIL: lowercase code did not join")
+		return false
+	gs.rooms[code].in_match = true
 	gs.in_match = true
-	var during: String = gs.try_register(3, "乙", "fish")
+	var during: String = gs.try_register(4, "丙", "fish", code)
 	if during != gs.MSG_IN_MATCH:
 		push_error("[verify_lobby] FAIL: in-match register -> %s" % during)
 		return false
-	gs.in_match = false
-	gs.room_password = ""
-	gs.players.clear()
-	gs.recompute_host()
-	for i in gs.MAX_PLAYERS:
-		var joined: String = gs.try_register(10 + i, "玩家%d" % i, "")
+	var other: String = gs.try_register(4, "丙", "")
+	if other != "" or gs.room_code == code or gs.rooms.size() != 2:
+		push_error("[verify_lobby] FAIL: second room while one is in match (%s)" % other)
+		return false
+	if gs.try_register(5, "丁", "", "no") != gs.MSG_BAD_CODE:
+		push_error("[verify_lobby] FAIL: short code")
+		return false
+	if gs.try_register(5, "丁", "", "ZZZZ") != gs.MSG_NO_ROOM:
+		push_error("[verify_lobby] FAIL: missing room")
+		return false
+	gs.reset_lobby()
+	var first: String = gs.try_register(10, "玩家0", "")
+	var full_code := str(gs.room_code)
+	if first != "":
+		push_error("[verify_lobby] FAIL: create room %s" % first)
+		return false
+	for i in range(1, gs.MAX_PLAYERS):
+		var joined: String = gs.try_register(10 + i, "玩家%d" % i, "", full_code)
 		if joined != "":
 			push_error("[verify_lobby] FAIL: slot %d rejected early: %s" % [i, joined])
 			return false
-	var full: String = gs.try_register(99, "溢出", "")
+	var full: String = gs.try_register(99, "溢出", "", full_code)
 	if full != gs.MSG_FULL or gs.players.size() != gs.MAX_PLAYERS:
 		push_error("[verify_lobby] FAIL: full room -> %s size=%d" % [full, gs.players.size()])
+		return false
+	var extra: String = gs.try_register(100, "另一间", "")
+	if extra != "" or gs.rooms.size() != 2:
+		push_error("[verify_lobby] FAIL: full room blocked a new room (%s)" % extra)
+		return false
+	gs.reset_lobby()
+	for i in RoomCodes.MAX_ROOMS:
+		if gs.try_register(1000 + i, "房%d" % i, "") != "":
+			push_error("[verify_lobby] FAIL: room cap hit early at %d" % i)
+			return false
+	if gs.try_register(2000, "再来", "") != gs.MSG_TOO_MANY:
+		push_error("[verify_lobby] FAIL: room cap")
 		return false
 	print("[verify_lobby] password / in-match / full OK")
 	return true
@@ -77,9 +108,10 @@ func _check_host_ready_and_map(gs) -> bool:
 	gs.reset_lobby()
 	if gs.try_register(8, "晚到", "") != "":
 		return false
-	if gs.try_register(4, "房主", "") != "":
+	var code := str(gs.room_code)
+	if gs.try_register(4, "房主", "", code) != "":
 		return false
-	if gs.try_register(6, "中间", "") != "":
+	if gs.try_register(6, "中间", "", code) != "":
 		return false
 	if int(gs.host_peer_id) != 4:
 		push_error("[verify_lobby] FAIL: host should be smallest peer, got %s" % gs.host_peer_id)
@@ -139,16 +171,18 @@ func _check_snapshot(gs) -> bool:
 	gs.reset_lobby()
 	gs.try_register(3, "同步", "")
 	gs.set_player_ready(3, true)
-	gs.host_peer_id = 3
-	gs.room_password = "pw"
-	gs.map_id = 1
-	gs.seed_input = "77"
+	var sync_code := str(gs.room_code)
+	gs.apply_password(3, "pw")
+	gs.apply_map_settings(3, 1, "77")
+	gs.rooms[sync_code].soft_seed = 77
 	gs.soft_seed = 77
-	gs.in_match = false
 	var snap: Dictionary = gs.make_snapshot()
+	if str(snap.get("room_code", "")) != sync_code:
+		push_error("[verify_lobby] FAIL: snapshot dropped room code")
+		return false
 	gs.reset_lobby()
 	gs.apply_snapshot(snap)
-	if int(gs.host_peer_id) != 3 or gs.room_password != "pw" or int(gs.map_id) != 1 or gs.seed_input != "77" or int(gs.soft_seed) != 77:
+	if str(gs.room_code) != sync_code or int(gs.host_peer_id) != 3 or gs.room_password != "pw" or int(gs.map_id) != 1 or gs.seed_input != "77" or int(gs.soft_seed) != 77:
 		push_error("[verify_lobby] FAIL: snapshot room fields")
 		return false
 	if not gs.players.has(3) or not bool(gs.players[3]["ready"]):
@@ -191,14 +225,17 @@ func _check_sources() -> bool:
 	if lobby_src.find("_maybe_autostart") >= 0 or lobby_src.find("自动开局") >= 0:
 		push_error("[verify_lobby] FAIL: auto-start still mentioned in lobby")
 		return false
-	if scene_src.find("进入房间") < 0 or scene_src.find("单机试试") < 0 or scene_src.find("本机开房") < 0:
+	if scene_src.find("进入房间") < 0 or scene_src.find("单机试试") < 0 or scene_src.find("本机开房") < 0 or scene_src.find("房间码") < 0:
 		push_error("[verify_lobby] FAIL: login copy missing from lobby.tscn")
 		return false
 	if lobby_src.find("将连接本站游戏服") < 0 or lobby_src.find("OS.has_feature(\"web\")") < 0:
 		push_error("[verify_lobby] FAIL: web host/address folding missing")
 		return false
-	if state_src.find("_rpc_sync_map_settings") < 0 or state_src.find("对局中，请稍后再来") < 0:
+	if state_src.find("_rpc_sync_map_settings") < 0 or state_src.find("对局中，请稍后再来") < 0 or state_src.find("没有这个房间") < 0:
 		push_error("[verify_lobby] FAIL: GameState room RPC or reject copy missing")
+		return false
+	if FileAccess.get_file_as_string("res://scripts/room_codes.gd").find("@rpc") >= 0:
+		push_error("[verify_lobby] FAIL: rpc leaked into room codes")
 		return false
 	if state_src.find("@rpc") >= 0 and FileAccess.get_file_as_string("res://scripts/match/arena.gd").find("@rpc") >= 0:
 		push_error("[verify_lobby] FAIL: rpc leaked into match/")
@@ -235,6 +272,9 @@ func _check_lobby_ui(gs) -> bool:
 	if lobby.map_option.item_count != 4 or lobby.map_option.get_item_text(0) != "经典" or lobby.map_option.get_item_text(3) != "迷宫":
 		push_error("[verify_lobby] FAIL: map option items")
 		return false
+	if lobby.join_code_edit.placeholder_text.find("留空") < 0:
+		push_error("[verify_lobby] FAIL: room code placeholder")
+		return false
 	lobby.name_edit.text = ""
 	lobby._commit_nickname()
 	if gs.local_player_name != "摸鱼人":
@@ -242,8 +282,12 @@ func _check_lobby_ui(gs) -> bool:
 		return false
 	gs.reset_lobby()
 	gs.try_register(4, "小明", "")
-	gs.try_register(6, "小红", "")
+	var shown := str(gs.room_code)
+	gs.try_register(6, "小红", "", shown)
 	lobby._show_room()
+	if lobby.room_code_label.text != "房间码 %s" % shown:
+		push_error("[verify_lobby] FAIL: room code label %s" % lobby.room_code_label.text)
+		return false
 	var texts: PackedStringArray = []
 	for row in lobby.player_list.get_children():
 		for node in row.get_children():

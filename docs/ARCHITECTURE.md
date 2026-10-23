@@ -80,16 +80,20 @@ autoload Net / GameState   ← 仅连接与大厅快照
 
 ## 大厅 / 房间
 
-全局只有一间房（专用服或本机听服），没有房间列表。
+专用服和本机听服可以同时有多间房。房间码是 4 位（去掉 0/O/1/I/L）。留空房间码会新开一间，填了就加入那一间。密码仍然只是这间房的锁。
 
-- 界面在 `scenes/lobby.tscn` + `scripts/lobby.gd`：登录页（昵称、进入房间、单机试试、高级里的端口/地址）和等待房间（准备、房主开始、离开、密码、地图）
-- 房间快照在 `GameState`：`players[*].ready`、`host_peer_id`、`room_password`、`map_id`、`seed_input`、`soft_seed`、`in_match`
+- 房间表在 `GameState.rooms`。扁平的 `players` / `host_peer_id` / `map_id` 只镜像本机玩家所在的那一间；专用服进程自己不进任何一间
+- 对局节点挂在自动加载 `MatchHost` 下，路径是 `/root/MatchHost/<房间码>`，客机和主机一致，RPC 不会串房。单机试试仍直接切到 `game.tscn`
+- 一间房对局中时，别的房间码照样能开新局。房满、密码错、码不对、对局中，都只拒绝这一次登记
+
+- 界面在 `scenes/lobby.tscn` + `scripts/lobby.gd`：登录页（昵称、房间码、进入房间、单机试试、高级里的端口/地址）和等待房间（房间码、准备、房主开始、离开、密码、地图）
+- 房间快照在 `GameState`：`room_code`、`players[*].ready`、`host_peer_id`、`room_password`、`map_id`、`seed_input`、`soft_seed`、`in_match`。广播只发给这间房里的人
 - 同步仍走 `GameState._rpc_sync_players`。快照是带 `players` 字段的字典；旧的「纯玩家字典」仍能被 `apply_snapshot` 读入
-- 房主是 `players` 里最小的 peer id。专用服进程是 peer 1，但自己不占玩家位；有人离开就重算房主
+- 房主是该房 `players` 里最小的 peer id。专用服进程是 peer 1，但自己不占玩家位；有人离开就重算这间房的房主
 - 地图和软墙种子只有房主能改，经 `GameState._rpc_sync_map_settings` 写到权威端再广播。种子空或非数字时，开局由 `resolve_soft_seed()` 随机；整数则固定。再来一局保留 `map_id`，重新随机 `soft_seed`
-- 登记被拒（对局中、密码错、已满 4 人）会 RPC 回客户端并显示原因，不会停在「登记中」
+- 登记被拒（对局中、密码错、已满 4 人、房间码不对）会 RPC 回客户端并显示原因，不会停在「登记中」
 - 开始条件：房主操作，且至少 2 人、全员已准备。没有满员自动开局
-- 这些 RPC 放在 `GameState` 自动加载上，这样专用服切到对局场景后，新连接仍能被拒绝。`scripts/match/` 里仍然禁止 `@rpc` 和房间状态
+- 这些 RPC 放在 `GameState` 自动加载上，专用服留在大厅里照样能拒绝新连接。`scripts/match/` 里仍然禁止 `@rpc` 和房间状态
 
 ## 道具
 

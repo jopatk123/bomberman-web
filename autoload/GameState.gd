@@ -1,6 +1,7 @@
 extends Node
 ## Shared room snapshot: players, host, password, map, ready, in-match.
-## Room RPCs live here so they still resolve after the server enters the match scene.
+## `rooms` is every room on this process. The flat fields mirror the local player's room.
+## Room RPCs live here so they still resolve after a match node exists.
 ## Match simulation does not belong in this autoload.
 
 signal player_list_changed
@@ -15,6 +16,9 @@ const MSG_IN_MATCH := "对局中，请稍后再来"
 const MSG_BAD_PASSWORD := "房间密码不正确"
 const MSG_NEED_PLAYERS := "至少 2 人才能开始"
 const MSG_NEED_READY := "全员准备后才能开始"
+const MSG_NO_ROOM := "没有这个房间"
+const MSG_BAD_CODE := "房间码是 4 位"
+const MSG_TOO_MANY := "服务器房间已满，稍后再开"
 ## Colors for up to 4 players (visual only).
 const PLAYER_COLORS := [
 	Color(0.2, 0.55, 1.0),
@@ -40,10 +44,19 @@ var seed_input: String = ""
 var pending_notice: String = ""
 ## Offline solo spawns MatchBot. Never replicated; online matches leave this false.
 var solo_bot: bool = false
+## code -> room dictionary. Authority keeps every room; a client only mirrors `room_code`.
+var rooms: Dictionary = {}
+## peer_id -> room code. Authority only.
+var peer_room: Dictionary = {}
+## Room this peer is sitting in. Empty on a dedicated server and before register.
+var room_code: String = ""
 
 
 func reset_lobby() -> void:
 	players.clear()
+	rooms.clear()
+	peer_room.clear()
+	room_code = ""
 	in_match = false
 	host_peer_id = 0
 	room_password = ""
@@ -63,16 +76,10 @@ func register_local_as_host() -> void:
 	var id := local_peer_id()
 	if id <= 0:
 		id = 1
-	var nick := local_player_name.strip_edges()
-	if nick.is_empty():
-		nick = "摸鱼人"
-	players[id] = {
-		"name": nick,
-		"color_idx": 0,
-		"ready": false,
-	}
-	recompute_host()
-	player_list_changed.emit()
+	if peer_room.has(id):
+		_mirror(str(peer_room[id]))
+		return
+	try_register(id, local_player_name, room_password, "")
 
 
 func local_peer_id() -> int:
@@ -84,14 +91,12 @@ func local_peer_id() -> int:
 func recompute_host() -> void:
 	var ids := get_sorted_peer_ids()
 	host_peer_id = int(ids[0]) if not ids.is_empty() else 0
+	if room_code != "" and rooms.has(room_code):
+		rooms[room_code].host_peer_id = host_peer_id
 
 
 func get_sorted_peer_ids() -> Array:
-	var ids: Array = []
-	for k in players.keys():
-		ids.append(int(k))
-	ids.sort()
-	return ids
+	return _sorted_ids(players)
 
 
 func color_for_peer(peer_id: int) -> Color:
@@ -103,6 +108,8 @@ func color_for_peer(peer_id: int) -> Color:
 
 ## Authority: turn seed_input / pending soft_seed into a concrete non-negative int.
 func resolve_soft_seed() -> int:
+	if room_code != "" and rooms.has(room_code):
+		return resolve_room_seed(room_code)
 	if soft_seed >= 0:
 		return soft_seed
 	var t := seed_input.strip_edges()
@@ -113,14 +120,40 @@ func resolve_soft_seed() -> int:
 	return soft_seed
 
 
+func resolve_room_seed(code: String) -> int:
+	if not rooms.has(code):
+		return soft_seed if soft_seed >= 0 else 0
+	var room: Dictionary = rooms[code]
+	var current := int(room.get("soft_seed", -1))
+	if current >= 0:
+		if code == room_code:
+			soft_seed = current
+		return current
+	var t := str(room.get("seed_input", "")).strip_edges()
+	var resolved: int
+	if t.is_empty() or not t.is_valid_int():
+		resolved = randi() & 0x7fffffff
+	else:
+		resolved = int(t)
+	room.soft_seed = resolved
+	if code == room_code:
+		soft_seed = resolved
+	return resolved
+
+
 func set_map_id(id: int) -> void:
 	map_id = Arena.clamp_map_id(id)
+	if room_code != "" and rooms.has(room_code):
+		rooms[room_code].map_id = map_id
 	map_settings_changed.emit()
 
 
 func set_seed_input(text: String) -> void:
 	seed_input = text
 	soft_seed = -1
+	if room_code != "" and rooms.has(room_code):
+		rooms[room_code].seed_input = text
+		rooms[room_code].soft_seed = -1
 	map_settings_changed.emit()
 
 
@@ -132,62 +165,99 @@ func is_local_host() -> bool:
 
 
 func start_block_reason() -> String:
-	if players.size() < 2:
-		return MSG_NEED_PLAYERS
-	for id in get_sorted_peer_ids():
-		if not bool(players[id].get("ready", false)):
-			return MSG_NEED_READY
-	return ""
+	if room_code != "" and rooms.has(room_code):
+		return _block_reason(rooms[room_code].players)
+	return _block_reason(players)
 
 
-## Empty string means the player was accepted (or was already in the room).
-func try_register(sender: int, player_name: String, password: String) -> String:
+func peer_in_match(id: int) -> bool:
+	var code := str(peer_room.get(int(id), ""))
+	if code == "" or not rooms.has(code):
+		return false
+	return bool(rooms[code].in_match)
+
+
+func room_index_text() -> String:
+	if rooms.is_empty():
+		return "还没有房间。留空房间码就会新开一间。"
+	var codes: Array = rooms.keys()
+	codes.sort()
+	var lines: PackedStringArray = []
+	for code in codes:
+		var room: Dictionary = rooms[code]
+		var names: PackedStringArray = []
+		for id in _sorted_ids(room.players):
+			names.append(str(room.players[id].get("name", id)))
+		var state := "对局中" if bool(room.in_match) else "等待中"
+		var who := "、".join(names)
+		lines.append("%s · %s %d/%d · %s" % [code, state, room.players.size(), MAX_PLAYERS, who])
+	return "\n".join(lines)
+
+
+## Empty string means the player was accepted (or was already in a room).
+## An empty code opens a new room. A code joins that room.
+func try_register(sender: int, player_name: String, password: String, code: String = "") -> String:
 	if sender <= 0:
 		return MSG_BAD_PASSWORD
-	if players.has(sender):
+	if peer_room.has(sender):
 		return ""
-	if in_match:
-		return MSG_IN_MATCH
-	var given := password.strip_edges()
-	if room_password != "" and given != room_password:
-		return MSG_BAD_PASSWORD
-	if players.size() >= MAX_PLAYERS:
-		return MSG_FULL
-	var nick := player_name.strip_edges()
-	if nick.is_empty():
-		nick = "摸鱼人"
-	if nick.length() > 16:
-		nick = nick.substr(0, 16)
-	var used: Array = []
-	for p in players.values():
-		used.append(int(p.get("color_idx", 0)))
-	var color_idx := 0
-	while color_idx in used and color_idx < MAX_PLAYERS:
-		color_idx += 1
-	players[sender] = {
-		"name": nick,
-		"color_idx": color_idx % MAX_PLAYERS,
-		"ready": false,
-	}
-	recompute_host()
+	var raw := code.strip_edges()
+	var norm := RoomCodes.normalize(raw)
+	if raw != "" and norm == "":
+		return MSG_BAD_CODE
+	var created := false
+	if norm == "":
+		if rooms.size() >= RoomCodes.MAX_ROOMS:
+			return MSG_TOO_MANY
+		norm = RoomCodes.allocate(rooms)
+		if norm == "":
+			return MSG_TOO_MANY
+		rooms[norm] = RoomCodes.fresh(norm, password)
+		created = true
+	elif not rooms.has(norm):
+		return MSG_NO_ROOM
+	if not created:
+		var reject := _reject_join(rooms[norm], password)
+		if reject != "":
+			return reject
+	_seat(norm, sender, player_name)
+	_mirror(norm)
 	return ""
 
 
 func set_player_ready(peer_id: int, is_ready: bool) -> bool:
-	if not players.has(peer_id):
+	var roster := _roster_for_peer(peer_id)
+	if not roster.has(peer_id):
 		return false
-	players[peer_id]["ready"] = is_ready
+	roster[peer_id]["ready"] = is_ready
 	return true
 
 
 func apply_password(sender: int, password: String) -> bool:
-	if sender != host_peer_id:
+	var code := str(peer_room.get(sender, ""))
+	var host := host_peer_id
+	if code != "" and rooms.has(code):
+		host = int(rooms[code].host_peer_id)
+	if sender != host:
 		return false
-	room_password = password.strip_edges()
+	var pw := password.strip_edges()
+	if code != "" and rooms.has(code):
+		rooms[code].room_password = pw
+	if code == "" or code == room_code:
+		room_password = pw
 	return true
 
 
 func apply_map_settings(sender: int, next_map: int, next_seed_input: String) -> bool:
+	var code := str(peer_room.get(sender, ""))
+	if code != "" and rooms.has(code):
+		if sender != int(rooms[code].host_peer_id):
+			return false
+		rooms[code].map_id = Arena.clamp_map_id(next_map)
+		rooms[code].seed_input = next_seed_input
+		rooms[code].soft_seed = -1
+		_mirror(code)
+		return true
 	if sender != host_peer_id:
 		return false
 	set_map_id(next_map)
@@ -196,17 +266,45 @@ func apply_map_settings(sender: int, next_map: int, next_seed_input: String) -> 
 
 
 func try_kick(requester: int, target_id: int) -> bool:
-	if requester != host_peer_id:
+	var code := str(peer_room.get(requester, ""))
+	var roster: Dictionary = players
+	var host := host_peer_id
+	if code != "" and rooms.has(code):
+		host = int(rooms[code].host_peer_id)
+		roster = rooms[code].players
+	if requester != host:
 		return false
-	if target_id == requester or not players.has(target_id):
+	if target_id == requester or not roster.has(target_id):
 		return false
-	players.erase(target_id)
-	recompute_host()
+	roster.erase(target_id)
+	peer_room.erase(target_id)
+	var new_host := _smallest(roster)
+	if code != "" and rooms.has(code):
+		rooms[code].host_peer_id = new_host
+	if code == "" or code == room_code:
+		host_peer_id = new_host
 	return true
 
 
 func make_snapshot() -> Dictionary:
+	return snapshot_for(room_code)
+
+
+func snapshot_for(code: String) -> Dictionary:
+	if code != "" and rooms.has(code):
+		var room: Dictionary = rooms[code]
+		return {
+			"room_code": code,
+			"players": room.players.duplicate(true),
+			"host_peer_id": int(room.host_peer_id),
+			"room_password": str(room.room_password),
+			"map_id": int(room.map_id),
+			"seed_input": str(room.seed_input),
+			"soft_seed": int(room.soft_seed),
+			"in_match": bool(room.in_match),
+		}
 	return {
+		"room_code": room_code,
 		"players": players.duplicate(true),
 		"host_peer_id": host_peer_id,
 		"room_password": room_password,
@@ -221,31 +319,152 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 	if typeof(snapshot) != TYPE_DICTIONARY:
 		return
 	if snapshot.has("players"):
-		players = _normalize_players(snapshot["players"])
-		host_peer_id = int(snapshot.get("host_peer_id", 0))
-		room_password = str(snapshot.get("room_password", ""))
-		map_id = Arena.clamp_map_id(int(snapshot.get("map_id", map_id)))
-		if snapshot.has("seed_input"):
-			seed_input = str(snapshot["seed_input"])
-		if snapshot.has("soft_seed"):
-			soft_seed = int(snapshot["soft_seed"])
-		if snapshot.has("in_match"):
-			in_match = bool(snapshot["in_match"])
+		var code := str(snapshot.get("room_code", ""))
+		var normalized := _normalize_players(snapshot["players"])
+		if code != "" and rooms.has(code):
+			var dest: Dictionary = rooms[code].players
+			dest.clear()
+			for k in normalized.keys():
+				dest[k] = normalized[k]
+			rooms[code].host_peer_id = int(snapshot.get("host_peer_id", rooms[code].host_peer_id))
+			rooms[code].room_password = str(snapshot.get("room_password", rooms[code].room_password))
+			rooms[code].map_id = Arena.clamp_map_id(int(snapshot.get("map_id", rooms[code].map_id)))
+			if snapshot.has("seed_input"):
+				rooms[code].seed_input = str(snapshot["seed_input"])
+			if snapshot.has("soft_seed"):
+				rooms[code].soft_seed = int(snapshot["soft_seed"])
+			if snapshot.has("in_match"):
+				rooms[code].in_match = bool(snapshot["in_match"])
+			if not Net.is_dedicated():
+				room_code = code
+				players = dest
+				host_peer_id = int(rooms[code].host_peer_id)
+				room_password = str(rooms[code].room_password)
+				map_id = int(rooms[code].map_id)
+				seed_input = str(rooms[code].seed_input)
+				soft_seed = int(rooms[code].soft_seed)
+				in_match = bool(rooms[code].in_match)
+		else:
+			if code != "":
+				room_code = code
+			players = normalized
+			host_peer_id = int(snapshot.get("host_peer_id", 0))
+			room_password = str(snapshot.get("room_password", ""))
+			map_id = Arena.clamp_map_id(int(snapshot.get("map_id", map_id)))
+			if snapshot.has("seed_input"):
+				seed_input = str(snapshot["seed_input"])
+			if snapshot.has("soft_seed"):
+				soft_seed = int(snapshot["soft_seed"])
+			if snapshot.has("in_match"):
+				in_match = bool(snapshot["in_match"])
+			if not players.has(host_peer_id):
+				recompute_host()
 	else:
 		# Older snapshots were the players dict itself.
 		players = _normalize_players(snapshot)
-	if not players.has(host_peer_id):
+		if not players.has(host_peer_id):
+			recompute_host()
+	if not Net.is_dedicated() and room_code != "" and rooms.has(room_code) and not players.has(host_peer_id):
 		recompute_host()
 	player_list_changed.emit()
 
 
-func broadcast_room() -> void:
-	var snap := make_snapshot()
-	if Net.is_online():
-		if Net.is_authority():
-			_rpc_sync_players.rpc(snap)
+func broadcast_room(code: String = "") -> void:
+	if code == "":
+		code = room_code
+	var snap := snapshot_for(code)
+	if not Net.is_online():
+		apply_snapshot(snap)
 		return
-	apply_snapshot(snap)
+	if not Net.is_authority():
+		return
+	var me := Net.get_peer_id()
+	for raw in _peer_ids_of(code):
+		var pid := int(raw)
+		if pid <= 0 or pid == me:
+			continue
+		_rpc_sync_players.rpc_id(pid, snap)
+	if Net.is_dedicated():
+		player_list_changed.emit()
+
+
+func install_roster(code: String, snap: Dictionary) -> Dictionary:
+	var normalized := _normalize_players(snap)
+	if code != "" and rooms.has(code):
+		var dest: Dictionary = rooms[code].players
+		dest.clear()
+		for k in normalized.keys():
+			dest[k] = normalized[k]
+		if not Net.is_dedicated() and (room_code == "" or room_code == code):
+			players = dest
+			room_code = code
+		return dest
+	players = normalized
+	return players
+
+
+func finish_forfeit(roster: Dictionary, code: String, do_broadcast: bool) -> void:
+	if code != "" and rooms.has(code):
+		var gone: Array = []
+		for raw in peer_room.keys():
+			if str(peer_room[raw]) == code and not roster.has(int(raw)):
+				gone.append(int(raw))
+		for pid in gone:
+			peer_room.erase(pid)
+		rooms[code].host_peer_id = _smallest(roster)
+	if code == "" or (code == room_code and not Net.is_dedicated()):
+		recompute_host()
+	if do_broadcast:
+		broadcast_room(code)
+	elif code == "" or code == room_code or Net.is_dedicated():
+		player_list_changed.emit()
+
+
+func drop_waiting_peer(id: int) -> void:
+	var code := str(peer_room.get(id, ""))
+	if code == "" or not rooms.has(code):
+		if players.has(id):
+			players.erase(id)
+			recompute_host()
+			broadcast_room()
+		return
+	if bool(rooms[code].in_match):
+		return
+	rooms[code].players.erase(id)
+	peer_room.erase(id)
+	if rooms[code].players.is_empty():
+		rooms.erase(code)
+		if room_code == code:
+			room_code = ""
+			players = {}
+			host_peer_id = 0
+			in_match = false
+			room_password = ""
+		player_list_changed.emit()
+		return
+	rooms[code].host_peer_id = _smallest(rooms[code].players)
+	_mirror(code)
+	broadcast_room(code)
+
+
+func dissolve_room(code: String) -> void:
+	if code == "":
+		return
+	var gone: Array = []
+	for raw in peer_room.keys():
+		if str(peer_room[raw]) == code:
+			gone.append(int(raw))
+	for pid in gone:
+		peer_room.erase(pid)
+	rooms.erase(code)
+	MatchHost.close_room(code)
+	if room_code == code:
+		room_code = ""
+		players = {}
+		host_peer_id = 0
+		in_match = false
+		room_password = ""
+	player_list_changed.emit()
 
 
 func submit_ready(is_ready: bool) -> void:
@@ -287,6 +506,9 @@ func request_start() -> void:
 
 
 func launch_match() -> void:
+	if room_code != "" and rooms.has(room_code):
+		launch_room(room_code)
+		return
 	if not Net.is_authority():
 		return
 	if start_block_reason() != "":
@@ -294,25 +516,36 @@ func launch_match() -> void:
 	map_id = Arena.clamp_map_id(map_id)
 	resolve_soft_seed()
 	in_match = true
-	var snap := make_snapshot()
-	if Net.is_online():
-		_rpc_start_match.rpc(snap)
-	else:
-		_rpc_start_match(snap)
+	_send_start(make_snapshot())
+
+
+func launch_room(code: String) -> void:
+	if Net.is_online() and not Net.is_authority():
+		return
+	if not rooms.has(code):
+		return
+	var room: Dictionary = rooms[code]
+	if _block_reason(room.players) != "":
+		return
+	room.map_id = Arena.clamp_map_id(int(room.map_id))
+	resolve_room_seed(code)
+	room.in_match = true
+	_mirror(code)
+	_send_start(snapshot_for(code))
 
 
 @rpc("any_peer", "reliable")
-func _rpc_register_player(player_name: String, password: String) -> void:
+func _rpc_register_player(player_name: String, password: String, code: String = "") -> void:
 	if not Net.is_authority():
 		return
 	var sender := multiplayer.get_remote_sender_id()
 	if sender <= 0:
 		return
-	var err := try_register(sender, player_name, password)
+	var err := try_register(sender, player_name, password, code)
 	if err != "":
 		_reject_and_drop(sender, err)
 		return
-	broadcast_room()
+	broadcast_room(str(peer_room.get(sender, "")))
 
 
 @rpc("authority", "reliable")
@@ -324,24 +557,27 @@ func _rpc_register_rejected(message: String) -> void:
 func _rpc_set_ready(is_ready: bool) -> void:
 	if not Net.is_authority():
 		return
-	if set_player_ready(multiplayer.get_remote_sender_id(), is_ready):
-		broadcast_room()
+	var sender := multiplayer.get_remote_sender_id()
+	if set_player_ready(sender, is_ready):
+		broadcast_room(str(peer_room.get(sender, "")))
 
 
 @rpc("any_peer", "reliable")
 func _rpc_set_password(password: String) -> void:
 	if not Net.is_authority():
 		return
-	if apply_password(multiplayer.get_remote_sender_id(), password):
-		broadcast_room()
+	var sender := multiplayer.get_remote_sender_id()
+	if apply_password(sender, password):
+		broadcast_room(str(peer_room.get(sender, "")))
 
 
 @rpc("any_peer", "reliable")
 func _rpc_sync_map_settings(next_map: int, next_seed_input: String) -> void:
 	if not Net.is_authority():
 		return
-	if apply_map_settings(multiplayer.get_remote_sender_id(), next_map, next_seed_input):
-		broadcast_room()
+	var sender := multiplayer.get_remote_sender_id()
+	if apply_map_settings(sender, next_map, next_seed_input):
+		broadcast_room(str(peer_room.get(sender, "")))
 
 
 @rpc("any_peer", "reliable")
@@ -363,20 +599,37 @@ func _rpc_request_start() -> void:
 	_start_as(multiplayer.get_remote_sender_id())
 
 
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "reliable")
 func _rpc_sync_players(snapshot: Dictionary) -> void:
+	if Net.is_dedicated():
+		return
 	apply_snapshot(snapshot)
 
 
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "reliable")
 func _rpc_start_match(snapshot: Dictionary) -> void:
+	var code := str(snapshot.get("room_code", ""))
+	if Net.is_dedicated():
+		if code != "" and rooms.has(code):
+			rooms[code].in_match = true
+		MatchHost.open_room(code)
+		player_list_changed.emit()
+		return
 	apply_snapshot(snapshot)
 	in_match = true
+	if code != "":
+		MatchHost.open_room(code)
 	match_starting.emit()
 
 
 func _start_as(sender: int) -> void:
-	if not Net.is_authority():
+	if Net.is_online() and not Net.is_authority():
+		return
+	var code := str(peer_room.get(sender, ""))
+	if code != "" and rooms.has(code):
+		if sender != int(rooms[code].host_peer_id):
+			return
+		launch_room(code)
 		return
 	if sender != host_peer_id:
 		return
@@ -384,11 +637,15 @@ func _start_as(sender: int) -> void:
 
 
 func _kick_as(requester: int, target_id: int) -> void:
+	var code := str(peer_room.get(requester, ""))
 	if not try_kick(requester, target_id):
 		return
 	if Net.is_online() and Net.is_authority():
 		_rpc_kicked.rpc_id(target_id, "你已被请出房间")
-		broadcast_room()
+		if code != "" and rooms.has(code):
+			broadcast_room(code)
+		else:
+			broadcast_room()
 		_drop_peer_soon(target_id)
 	else:
 		player_list_changed.emit()
@@ -411,6 +668,18 @@ func _drop_peer_soon(peer_id: int) -> void:
 	)
 
 
+func _send_start(snap: Dictionary) -> void:
+	var code := str(snap.get("room_code", ""))
+	if Net.is_online():
+		var me := Net.get_peer_id()
+		for raw in _peer_ids_of(code):
+			var pid := int(raw)
+			if pid <= 0 or pid == me:
+				continue
+			_rpc_start_match.rpc_id(pid, snap)
+	_rpc_start_match(snap)
+
+
 func _normalize_players(raw: Dictionary) -> Dictionary:
 	var out: Dictionary = {}
 	for k in raw.keys():
@@ -429,3 +698,94 @@ func _normalize_players(raw: Dictionary) -> Dictionary:
 			"ready": bool(entry.get("ready", false)),
 		}
 	return out
+
+
+func _sorted_ids(roster: Dictionary) -> Array:
+	var ids: Array = []
+	for k in roster.keys():
+		ids.append(int(k))
+	ids.sort()
+	return ids
+
+
+func _smallest(roster: Dictionary) -> int:
+	var ids := _sorted_ids(roster)
+	return int(ids[0]) if not ids.is_empty() else 0
+
+
+func _peer_ids_of(code: String) -> Array:
+	if code != "" and rooms.has(code):
+		return _sorted_ids(rooms[code].players)
+	return get_sorted_peer_ids()
+
+
+func _roster_for_peer(peer_id: int) -> Dictionary:
+	var code := str(peer_room.get(peer_id, ""))
+	if code != "" and rooms.has(code):
+		return rooms[code].players
+	return players
+
+
+func _block_reason(roster: Dictionary) -> String:
+	if roster.size() < 2:
+		return MSG_NEED_PLAYERS
+	for id in _sorted_ids(roster):
+		if not bool(roster[id].get("ready", false)):
+			return MSG_NEED_READY
+	return ""
+
+
+func _reject_join(room: Dictionary, password: String) -> String:
+	if bool(room.get("in_match", false)):
+		return MSG_IN_MATCH
+	var expected := str(room.get("room_password", ""))
+	var given := password.strip_edges()
+	if expected != "" and given != expected:
+		return MSG_BAD_PASSWORD
+	if room.players.size() >= MAX_PLAYERS:
+		return MSG_FULL
+	return ""
+
+
+func _seat(code: String, sender: int, player_name: String) -> void:
+	var room: Dictionary = rooms[code]
+	var roster: Dictionary = room.players
+	var nick := player_name.strip_edges()
+	if nick.is_empty():
+		nick = "摸鱼人"
+	if nick.length() > 16:
+		nick = nick.substr(0, 16)
+	var used: Array = []
+	for p in roster.values():
+		used.append(int(p.get("color_idx", 0)))
+	var color_idx := 0
+	while color_idx in used and color_idx < MAX_PLAYERS:
+		color_idx += 1
+	roster[sender] = {
+		"name": nick,
+		"color_idx": color_idx % MAX_PLAYERS,
+		"ready": false,
+	}
+	peer_room[sender] = code
+	room.host_peer_id = _smallest(roster)
+
+
+func _mirror(code: String) -> void:
+	if code == "" or not rooms.has(code):
+		player_list_changed.emit()
+		return
+	if Net.is_dedicated():
+		player_list_changed.emit()
+		return
+	if Net.is_online() and room_code != "" and code != room_code:
+		return
+	var room: Dictionary = rooms[code]
+	room_code = code
+	players = room.players
+	host_peer_id = int(room.host_peer_id)
+	room_password = str(room.room_password)
+	map_id = int(room.map_id)
+	seed_input = str(room.seed_input)
+	soft_seed = int(room.soft_seed)
+	in_match = bool(room.in_match)
+	player_list_changed.emit()

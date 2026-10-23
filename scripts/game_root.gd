@@ -69,6 +69,8 @@ var _board := MatchBoard.new()
 var _hud := MatchHud.new()
 var _predict := ClientPredict.new()
 var _session := MatchSession.new()
+## Set from MatchHost before this node enters the tree. Empty for offline solo.
+var room_code: String = ""
 var _sfx: Node
 
 ## Forwarded so existing checks can read the board's fire polygons.
@@ -83,6 +85,8 @@ var _ghost_node: Node2D:
 
 
 func _ready() -> void:
+	if has_meta("room_code"):
+		room_code = str(get_meta("room_code"))
 	_board.bind(map_layer, entities, powerups_layer, fx_layer, COLS, ROWS)
 	_hud.bind(
 		status_label, stats_label, spec_label, help_label, sd_label,
@@ -102,17 +106,20 @@ func _ready() -> void:
 		GameState.player_list_changed.connect(_on_roster_changed)
 	_sfx = preload("res://scripts/sfx.gd").new()
 	add_child(_sfx)
-	map_id = Arena.clamp_map_id(GameState.map_id)
+	if Net.is_dedicated():
+		visible = false
+		hud.visible = false
+	map_id = Arena.clamp_map_id(_room_map_id())
 	grid = Arena.build_base_grid(map_id)
 	if Net.is_authority():
-		map_id = Arena.clamp_map_id(GameState.map_id)
-		soft_seed = GameState.resolve_soft_seed()
-		GameState.map_id = map_id
-		GameState.soft_seed = soft_seed
+		map_id = Arena.clamp_map_id(_room_map_id())
+		soft_seed = _resolve_seed()
+		_publish_seed()
+		var roster := _roster().duplicate(true)
 		if Net.is_online():
-			_rpc_setup_match.rpc(soft_seed, GameState.players, map_id)
+			_notify_room("_rpc_setup_match", [soft_seed, roster, map_id])
 		else:
-			_rpc_setup_match(soft_seed, GameState.players, map_id)
+			_rpc_setup_match(soft_seed, roster, map_id)
 	else:
 		_hud.set_status("等待主机同步地图…")
 	_refresh_stats_hud()
@@ -180,7 +187,7 @@ func _local_control_id() -> int:
 	if not Net.is_online():
 		return 1
 	var id := Net.get_peer_id()
-	if GameState.players.has(id):
+	if _roster().has(id):
 		return id
 	return 0
 
@@ -195,17 +202,77 @@ func _default_stats() -> Dictionary:
 
 func _init_all_stats() -> void:
 	player_stats.clear()
-	for id in GameState.players.keys():
+	for id in _roster().keys():
 		player_stats[id] = _default_stats()
+
+
+func _roster() -> Dictionary:
+	if room_code != "" and GameState.rooms.has(room_code):
+		return GameState.rooms[room_code].players
+	return GameState.players
+
+
+func _room_map_id() -> int:
+	if room_code != "" and GameState.rooms.has(room_code):
+		return int(GameState.rooms[room_code].map_id)
+	return GameState.map_id
+
+
+func _resolve_seed() -> int:
+	if room_code != "" and GameState.rooms.has(room_code):
+		return GameState.resolve_room_seed(room_code)
+	return GameState.resolve_soft_seed()
+
+
+func _publish_seed() -> void:
+	if room_code != "" and GameState.rooms.has(room_code):
+		GameState.rooms[room_code].map_id = map_id
+		GameState.rooms[room_code].soft_seed = soft_seed
+	if room_code == "" or GameState.room_code == room_code:
+		GameState.map_id = map_id
+		GameState.soft_seed = soft_seed
+
+
+func _host_id() -> int:
+	if room_code != "" and GameState.rooms.has(room_code):
+		return int(GameState.rooms[room_code].host_peer_id)
+	return GameState.host_peer_id
+
+
+func _sorted_roster() -> Array:
+	var ids: Array = []
+	for k in _roster().keys():
+		ids.append(int(k))
+	ids.sort()
+	return ids
+
+
+func _color_for(peer_id: int) -> Color:
+	var info: Dictionary = _roster().get(peer_id, {})
+	var idx := int(info.get("color_idx", 0)) % GameState.PLAYER_COLORS.size()
+	return GameState.PLAYER_COLORS[idx]
+
+
+## Authority-only. Runs locally and on peers who are in this room.
+func _notify_room(method: StringName, args: Array = []) -> void:
+	if not Net.is_online():
+		callv(method, args)
+		return
+	callv(method, args)
+	var me := multiplayer.get_unique_id()
+	for raw in _roster().keys():
+		var pid := int(raw)
+		if pid <= 0 or pid == me:
+			continue
+		multiplayer.rpc(pid, self, method, args)
 
 
 @rpc("authority", "call_local", "reliable")
 func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) -> void:
-	GameState.players = players_snap.duplicate(true)
+	GameState.install_roster(room_code, players_snap)
 	soft_seed = seed
 	map_id = Arena.clamp_map_id(p_map_id)
-	GameState.map_id = map_id
-	GameState.soft_seed = soft_seed
+	_publish_seed()
 	match_over = false
 	_hud.hide_end()
 	sudden.reset()
@@ -228,7 +295,7 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 	else:
 		var versus := " · 对手：电脑 · 地图：%s" if GameState.solo_bot and not Net.is_online() else "· 地图：%s"
 		_hud.set_status(("对局进行中（主机权威）" + versus) % map_label)
-	for id in GameState.players.keys():
+	for id in _roster().keys():
 		alive[id] = true
 	_predict.clear_chain()
 	_clear_bomb_ghost()
@@ -242,7 +309,7 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 func _spawn_all_players() -> void:
 	_board.clear_players()
 	player_nodes.clear()
-	var ids := GameState.get_sorted_peer_ids()
+	var ids := _sorted_roster()
 	var spawns := Arena.spawn_cells()
 	var i := 0
 	for peer_id in ids:
@@ -259,8 +326,8 @@ func _spawn_all_players() -> void:
 
 
 func _make_player_visual(peer_id: int, cell: Vector2i) -> Node2D:
-	var display := str(GameState.players.get(peer_id, {}).get("name", peer_id))
-	return _board.make_player(peer_id, cell, GameState.color_for_peer(peer_id), display)
+	var display := str(_roster().get(peer_id, {}).get("name", peer_id))
+	return _board.make_player(peer_id, cell, _color_for(peer_id), display)
 
 
 func _draw_map() -> void:
@@ -292,7 +359,7 @@ func _rpc_request_move(dx: int, dy: int) -> void:
 	_apply_move(sender, step.x, step.y)
 	# Rejected steps still echo the host cell so a predicted pawn snaps back.
 	if had and player_nodes.has(sender) and player_nodes[sender].get_meta("cell") == before:
-		_rpc_set_player_cell.rpc(sender, before.x, before.y)
+		_notify_room("_rpc_set_player_cell", [sender, before.x, before.y])
 
 
 ## One orthogonal tile. Anything else (including diagonals and teleports) is ignored.
@@ -346,7 +413,7 @@ func _apply_move(peer_id: int, dx: int, dy: int) -> void:
 	# After owner leaves bomb cell → bomb becomes solid for everyone
 	_solidify_bombs_left_by(peer_id, prev)
 	if Net.is_online():
-		_rpc_set_player_cell.rpc(peer_id, cell.x, cell.y)
+		_notify_room("_rpc_set_player_cell", [peer_id, cell.x, cell.y])
 	else:
 		node.position = _cell_to_pos(cell)
 	_try_pickup_at(peer_id, cell)
@@ -421,7 +488,7 @@ func _move_bomb_to(bid: int, cell: Vector2i) -> void:
 	bd.y = cell.y
 	bombs[bid] = bd
 	if Net.is_online():
-		_rpc_set_bomb_cell.rpc(bid, cell.x, cell.y)
+		_notify_room("_rpc_set_bomb_cell", [bid, cell.x, cell.y])
 	else:
 		_apply_bomb_cell_visual(bid, cell)
 	if sudden.is_lethal(cell):
@@ -525,7 +592,7 @@ func _try_place_bomb(peer_id: int) -> void:
 	# solid=false → owner may walk off; becomes solid once they leave
 	bombs[bid] = BombRecord.make(cell.x, cell.y, peer_id, blast, pierce)
 	if Net.is_online():
-		_rpc_spawn_bomb.rpc(bid, cell.x, cell.y, peer_id, blast, pierce)
+		_notify_room("_rpc_spawn_bomb", [bid, cell.x, cell.y, peer_id, blast, pierce])
 	else:
 		_spawn_bomb_visual(bid, cell)
 	_refresh_stats_hud()
@@ -590,7 +657,7 @@ func _explode(bid: int) -> void:
 	var clear_pack := BlastRules.cells_to_packed(cleared_soft)
 	var spawn_pack := _powerups_to_packed(spawned)
 	if Net.is_online():
-		_rpc_bomb_boom.rpc(bid, BlastRules.cells_to_packed(hit_cells), clear_pack, spawn_pack)
+		_notify_room("_rpc_bomb_boom", [bid, BlastRules.cells_to_packed(hit_cells), clear_pack, spawn_pack])
 	else:
 		_apply_boom_visual(bid, hit_cells)
 		_repaint_cells(cleared_soft)
@@ -661,7 +728,7 @@ func _destroy_powerups_in(hit_cells: Array[Vector2i], just_spawned: Array) -> vo
 	for pid in to_rm:
 		_remove_powerup(pid)
 		if Net.is_online():
-			_rpc_remove_powerup.rpc(pid)
+			_notify_room("_rpc_remove_powerup", [pid])
 
 
 func _apply_boom_visual(bid: int, hit_cells: Array[Vector2i]) -> void:
@@ -702,7 +769,7 @@ func _try_pickup_at(peer_id: int, cell: Vector2i) -> void:
 	_apply_powerup(peer_id, kind)
 	_remove_powerup(found)
 	if Net.is_online():
-		_rpc_pickup.rpc(peer_id, found, kind, _stats_pack(peer_id))
+		_notify_room("_rpc_pickup", [peer_id, found, kind, _stats_pack(peer_id)])
 	else:
 		_refresh_stats_hud()
 		if _sfx:
@@ -735,7 +802,7 @@ func _tick_sudden_death(delta: float) -> void:
 	var r: Dictionary = sudden.tick(delta, COLS, ROWS, grid, Cell.HARD)
 	if r.just_activated:
 		if Net.is_online():
-			_rpc_sudden_death_start.rpc(sudden.elapsed)
+			_notify_room("_rpc_sudden_death_start", [sudden.elapsed])
 		else:
 			_on_sudden_death_started()
 	var new_cells: Array = r.new_cells
@@ -752,7 +819,7 @@ func _tick_sudden_death(delta: float) -> void:
 			if int(p.x) == c.x and int(p.y) == c.y:
 				powerup_ids.append(int(pid))
 	if Net.is_online():
-		_rpc_sudden_death_add.rpc(BlastRules.cells_to_packed(new_cells), bomb_ids, powerup_ids, sudden.elapsed)
+		_notify_room("_rpc_sudden_death_add", [BlastRules.cells_to_packed(new_cells), bomb_ids, powerup_ids, sudden.elapsed])
 	else:
 		_apply_sudden_ring(new_cells, bomb_ids, powerup_ids)
 
@@ -790,7 +857,7 @@ func _sync_match_clock(delta: float) -> void:
 	if _clock_sync_wait > 0.0:
 		return
 	_clock_sync_wait = 1.0
-	_rpc_sync_match_clock.rpc(sudden.elapsed, sudden.active)
+	_notify_room("_rpc_sync_match_clock", [sudden.elapsed, sudden.active])
 
 
 func _kill_players_on_lethal() -> void:
@@ -807,7 +874,7 @@ func _kill_player(peer_id: int, reason: String = "") -> void:
 		return
 	alive[peer_id] = false
 	if Net.is_online():
-		_rpc_player_died.rpc(peer_id, reason)
+		_notify_room("_rpc_player_died", [peer_id, reason])
 	else:
 		_show_death(peer_id)
 		if reason != "":
@@ -887,13 +954,13 @@ func _show_death(peer_id: int) -> void:
 func _check_winner() -> void:
 	if match_over:
 		return
-	var result: Dictionary = MatchEnd.outcome(alive, GameState.players)
+	var result: Dictionary = MatchEnd.outcome(alive, _roster())
 	if not bool(result.finished):
 		return
 	match_over = true
 	var winner_name := str(result.winner_name)
 	if Net.is_online():
-		_rpc_match_over.rpc(winner_name)
+		_notify_room("_rpc_match_over", [winner_name])
 	else:
 		_show_end_screen(winner_name)
 
@@ -906,7 +973,7 @@ func _show_end_screen(winner_name: String) -> void:
 
 func _refresh_rematch_button() -> void:
 	var me := _local_control_id()
-	var allowed := can_request_rematch(Net.is_online(), me, GameState.host_peer_id, GameState.players.size())
+	var allowed := can_request_rematch(Net.is_online(), me, _host_id(), _roster().size())
 	_hud.refresh_rematch(allowed)
 
 
@@ -922,7 +989,7 @@ func _rpc_match_over(winner_name: String) -> void:
 
 func _on_rematch() -> void:
 	var me := _local_control_id()
-	if not can_request_rematch(Net.is_online(), me, GameState.host_peer_id, GameState.players.size()):
+	if not can_request_rematch(Net.is_online(), me, _host_id(), _roster().size()):
 		return
 	if Net.is_online() and not Net.is_authority():
 		_rpc_request_rematch.rpc_id(1)
@@ -937,7 +1004,7 @@ func _rpc_request_rematch() -> void:
 	var sender := multiplayer.get_remote_sender_id()
 	if sender <= 0:
 		return
-	if not can_request_rematch(true, sender, GameState.host_peer_id, GameState.players.size()):
+	if not can_request_rematch(true, sender, _host_id(), _roster().size()):
 		return
 	_restart_match()
 
@@ -945,15 +1012,15 @@ func _rpc_request_rematch() -> void:
 func _restart_match() -> void:
 	if not Net.is_authority():
 		return
-	if GameState.players.is_empty():
+	var roster := _roster()
+	if roster.is_empty():
 		return
-	if Net.is_online() and GameState.players.size() < 2:
+	if Net.is_online() and roster.size() < 2:
 		return
 	# Keep map_id; rematch always rolls a new soft_seed.
-	map_id = Arena.clamp_map_id(map_id if map_id >= 0 else GameState.map_id)
+	map_id = Arena.clamp_map_id(map_id if map_id >= 0 else _room_map_id())
 	soft_seed = randi() & 0x7fffffff
-	GameState.map_id = map_id
-	GameState.soft_seed = soft_seed
+	_publish_seed()
 	bombs.clear()
 	next_bomb_id = 1
 	next_powerup_id = 1
@@ -962,10 +1029,11 @@ func _restart_match() -> void:
 	_clear_powerups()
 	_clear_bomb_visuals()
 	_init_all_stats()
+	var snap := roster.duplicate(true)
 	if Net.is_online():
-		_rpc_setup_match.rpc(soft_seed, GameState.players, map_id)
+		_notify_room("_rpc_setup_match", [soft_seed, snap, map_id])
 	else:
-		_rpc_setup_match(soft_seed, GameState.players, map_id)
+		_rpc_setup_match(soft_seed, snap, map_id)
 	_hud.set_status("再来一局 · 地图：%s" % Arena.map_name(map_id))
 
 
@@ -993,7 +1061,14 @@ func _on_match_peer_out(id: int) -> void:
 ## Drop a peer who left mid-match. Kill them before erasing the roster entry so a
 ## 2-player game still counts as a win, not as the solo "don't end" case.
 func _forfeit_peer(id: int) -> void:
-	_session.forfeit_peer(get_tree(), id, alive, match_over, _kill_player, _refresh_rematch_button)
+	_session.forfeit_peer(
+		get_tree(), id, alive, match_over, _kill_player, _refresh_rematch_button,
+		_roster(), room_code, _on_room_empty
+	)
+
+
+func _on_room_empty() -> void:
+	GameState.dissolve_room(room_code)
 
 
 func _refresh_stats_hud() -> void:

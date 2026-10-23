@@ -88,20 +88,21 @@ func refresh_spectator(my_id: int, match_over: bool, is_alive: bool) -> void:
 	spec_label.text = "已阵亡 · 观战中"
 
 
-func refresh_sudden_death(active: bool, elapsed: float, start_at: float, match_over: bool) -> void:
+func refresh_sudden_death(
+	active: bool, elapsed: float, start_at: float, match_over: bool, next_pulse: float = 0.0
+) -> void:
 	if sd_label == null:
-		return
-	if not SuddenDeath.ENABLED:
-		if _sd_key != "hide":
-			_sd_key = "hide"
-			sd_label.visible = false
 		return
 	var key := "hide"
 	var text := ""
 	if not match_over:
 		if active:
-			key = "active"
-			text = "突然死亡 · 安全区收缩中"
+			var secs: int = maxi(0, int(ceili(next_pulse)))
+			key = "pulse:%d" % secs
+			if secs > 0:
+				text = "突然死亡 · %d 秒后缩圈" % secs
+			else:
+				text = "突然死亡 · 安全区收缩中"
 		else:
 			var left: float = maxf(0.0, start_at - elapsed)
 			if left <= 30.0 and left > 0.0:

@@ -133,14 +133,14 @@ func _process(delta: float) -> void:
 		if not match_over:
 			_tick_bomb_slides(delta)
 			_tick_bombs(delta)
-			if SuddenDeath.ENABLED:
-				_tick_sudden_death(delta)
-				_kill_players_on_lethal()
-				_sync_match_clock(delta)
+			_tick_sudden_death(delta)
+			_kill_players_on_lethal()
+			_sync_match_clock(delta)
 			_tick_bot(delta)
-	elif not match_over and SuddenDeath.ENABLED:
+	elif not match_over:
 		# HUD clock only. Lethal cells arrive from the host.
 		sudden.advance_elapsed(delta)
+		sudden.advance_pulse_display(delta)
 	if not match_over:
 		_poll_local_input()
 	_refresh_sudden_death_hud()
@@ -821,7 +821,7 @@ func _tick_sudden_death(delta: float) -> void:
 			if int(p.x) == c.x and int(p.y) == c.y:
 				powerup_ids.append(int(pid))
 	if Net.is_online():
-		_notify_room("_rpc_sudden_death_add", [BlastRules.cells_to_packed(new_cells), bomb_ids, powerup_ids, sudden.elapsed])
+		_notify_room("_rpc_sudden_death_add", [BlastRules.cells_to_packed(new_cells), bomb_ids, powerup_ids, sudden.elapsed, sudden.next_pulse_in()])
 	else:
 		_apply_sudden_ring(new_cells, bomb_ids, powerup_ids)
 
@@ -859,7 +859,7 @@ func _sync_match_clock(delta: float) -> void:
 	if _clock_sync_wait > 0.0:
 		return
 	_clock_sync_wait = 1.0
-	_notify_room("_rpc_sync_match_clock", [sudden.elapsed, sudden.active])
+	_notify_room("_rpc_sync_match_clock", [sudden.elapsed, sudden.active, sudden.next_pulse_in()])
 
 
 func _kill_players_on_lethal() -> void:
@@ -899,17 +899,21 @@ func _on_sudden_death_started() -> void:
 
 
 @rpc("authority", "reliable")
-func _rpc_sync_match_clock(elapsed: float, is_active: bool) -> void:
+func _rpc_sync_match_clock(elapsed: float, is_active: bool, pulse_left: float = -1.0) -> void:
 	sudden.elapsed = elapsed
 	if is_active:
 		sudden.active = true
+	if pulse_left >= 0.0:
+		sudden.set_pulse_left(pulse_left)
 	_hud.invalidate_sudden_death()
 	_refresh_sudden_death_hud()
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_sudden_death_add(xy: PackedInt32Array, bomb_ids: PackedInt32Array, powerup_ids: PackedInt32Array, elapsed: float) -> void:
+func _rpc_sudden_death_add(xy: PackedInt32Array, bomb_ids: PackedInt32Array, powerup_ids: PackedInt32Array, elapsed: float, pulse_left: float = -1.0) -> void:
 	sudden.elapsed = elapsed
+	if pulse_left >= 0.0:
+		sudden.set_pulse_left(pulse_left)
 	_apply_sudden_ring(BlastRules.packed_to_cells(xy), bomb_ids, powerup_ids)
 
 
@@ -922,7 +926,9 @@ func _clear_sd_visuals() -> void:
 
 
 func _refresh_sudden_death_hud() -> void:
-	_hud.refresh_sudden_death(sudden.active, sudden.elapsed, SuddenDeath.START_AT, match_over)
+	_hud.refresh_sudden_death(
+		sudden.active, sudden.elapsed, SuddenDeath.START_AT, match_over, sudden.next_pulse_in()
+	)
 
 
 func _kill_players_in(hit_cells: Array[Vector2i]) -> void:

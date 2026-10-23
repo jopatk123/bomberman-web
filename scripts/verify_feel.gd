@@ -148,50 +148,49 @@ func _run() -> void:
 		return
 	print("[verify_feel] blast rules OK")
 
-	# --- 4) Sudden death (disabled: no countdown / ring) ---
-	if SuddenDeath.ENABLED:
+	# --- 4) Sudden death activates; interval after first ring is 15s ---
+	if absf(SuddenDeath.INTERVAL - 15.0) > 0.01:
+		push_error("[verify_feel] FAIL: INTERVAL should be 15s, got %s" % str(SuddenDeath.INTERVAL))
+		quit(1)
+		return
+	game.sudden.reset()
+	game.sudden.elapsed = SuddenDeath.START_AT - 0.01
+	game.sudden._pulse_left = 0.0
+	var before_lethal: int = game.sudden.lethal.size()
+	var tr: Dictionary = game.sudden.tick(0.05, game.COLS, game.ROWS, game.grid, game.Cell.HARD)
+	if not tr.just_activated and not game.sudden.active:
+		tr = game.sudden.tick(0.0, game.COLS, game.ROWS, game.grid, game.Cell.HARD)
+	game.sudden.active = true
+	game.sudden._pulse_left = 0.0
+	tr = game.sudden.tick(0.01, game.COLS, game.ROWS, game.grid, game.Cell.HARD)
+	if game.sudden.lethal.is_empty() and tr.new_cells.is_empty():
 		game.sudden.reset()
-		game.sudden.elapsed = SuddenDeath.START_AT - 0.01
-		game.sudden._pulse_left = 0.0
-		var before_lethal: int = game.sudden.lethal.size()
-		var tr: Dictionary = game.sudden.tick(0.05, game.COLS, game.ROWS, game.grid, game.Cell.HARD)
-		if not tr.just_activated and not game.sudden.active:
-			tr = game.sudden.tick(0.0, game.COLS, game.ROWS, game.grid, game.Cell.HARD)
-		game.sudden.active = true
-		game.sudden._pulse_left = 0.0
-		tr = game.sudden.tick(0.01, game.COLS, game.ROWS, game.grid, game.Cell.HARD)
-		if game.sudden.lethal.is_empty() and tr.new_cells.is_empty():
-			game.sudden.reset()
-			game.sudden.elapsed = SuddenDeath.START_AT
-			game.sudden.active = false
-			game.sudden._pulse_left = 0.0
-			game._tick_sudden_death(0.01)
-		if not game.sudden.active:
-			push_error("[verify_feel] FAIL: sudden death not active")
-			quit(1)
-			return
+		game.sudden.elapsed = SuddenDeath.START_AT
+		game.sudden.active = false
 		game.sudden._pulse_left = 0.0
 		game._tick_sudden_death(0.01)
-		if game.sudden.lethal.is_empty():
-			push_error("[verify_feel] FAIL: no lethal cells after SD tick")
-			quit(1)
-			return
-		print("[verify_feel] sudden death OK lethal=", game.sudden.lethal.size(), " (was ", before_lethal, ")")
-	else:
-		game.sudden.reset()
-		game.sudden.elapsed = SuddenDeath.START_AT + 10.0
-		var frozen: float = game.sudden.elapsed
-		var tr_off: Dictionary = game.sudden.tick(1.0, game.COLS, game.ROWS, game.grid, game.Cell.HARD)
-		if tr_off.just_activated or game.sudden.active or not tr_off.new_cells.is_empty():
-			push_error("[verify_feel] FAIL: sudden death should stay off when ENABLED=false")
-			quit(1)
-			return
-		game.sudden.advance_elapsed(5.0)
-		if game.sudden.elapsed != frozen:
-			push_error("[verify_feel] FAIL: elapsed should not advance when disabled")
-			quit(1)
-			return
-		print("[verify_feel] sudden death disabled OK")
+	if not game.sudden.active:
+		push_error("[verify_feel] FAIL: sudden death not active")
+		quit(1)
+		return
+	game.sudden._pulse_left = 0.0
+	game._tick_sudden_death(0.01)
+	if game.sudden.lethal.is_empty():
+		push_error("[verify_feel] FAIL: no lethal cells after SD tick")
+		quit(1)
+		return
+	if absf(game.sudden.next_pulse_in() - SuddenDeath.INTERVAL) > 0.05:
+		push_error("[verify_feel] FAIL: next pulse should be INTERVAL after ring")
+		quit(1)
+		return
+	# Within interval, no new ring
+	var lethal_after: int = game.sudden.lethal.size()
+	game._tick_sudden_death(1.0)
+	if game.sudden.lethal.size() != lethal_after:
+		push_error("[verify_feel] FAIL: ring expanded before INTERVAL")
+		quit(1)
+		return
+	print("[verify_feel] sudden death OK lethal=", game.sudden.lethal.size(), " (was ", before_lethal, ") interval=", SuddenDeath.INTERVAL)
 
 	# --- 5) Rematch clears fire ---
 	game._restart_match()

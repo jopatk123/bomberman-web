@@ -55,6 +55,30 @@ func _run() -> void:
 	tree_root.add_child(lobby)
 	await process_frame
 	print("[verify] lobby instance: ", lobby.name)
+	var bg := lobby.get_node_or_null("Bg")
+	if bg == null or not (bg is TextureRect):
+		push_error("[verify] FAIL: lobby Bg is not a TextureRect")
+		quit(1)
+		return
+	var bg_tex: Texture2D = (bg as TextureRect).texture
+	if bg_tex == null or bg_tex.get_width() != 960 or bg_tex.get_height() != 720:
+		push_error("[verify] FAIL: lobby background missing or not 960x720")
+		quit(1)
+		return
+	if (bg as TextureRect).stretch_mode != TextureRect.STRETCH_KEEP_ASPECT_COVERED:
+		push_error("[verify] FAIL: lobby background stretch is not keep-aspect covered")
+		quit(1)
+		return
+	if (bg as TextureRect).expand_mode != TextureRect.EXPAND_IGNORE_SIZE:
+		push_error("[verify] FAIL: lobby background expand is not ignore size")
+		quit(1)
+		return
+	var title := lobby.get_node_or_null("Center/Panel/Margin/Stack/Title")
+	if title == null or str((title as Label).text) != "摸鱼炸弹人":
+		push_error("[verify] FAIL: lobby title missing")
+		quit(1)
+		return
+	print("[verify] lobby pixel background OK")
 	lobby.queue_free()
 	await process_frame
 
@@ -72,5 +96,86 @@ func _run() -> void:
 		return
 	print("[verify] game instance: ", game.name, " cols=", game.COLS, " rows=", game.ROWS)
 	game.queue_free()
+
+	var tile_paths := [
+		"res://assets/art/pixel/tiles/floor_a.png",
+		"res://assets/art/pixel/tiles/floor_b.png",
+		"res://assets/art/pixel/tiles/hard.png",
+		"res://assets/art/pixel/tiles/soft.png",
+	]
+	for path in tile_paths:
+		var tex = load(path)
+		if tex == null or not (tex is Texture2D):
+			push_error("[verify] FAIL: cannot load %s" % path)
+			quit(1)
+			return
+		if (tex as Texture2D).get_width() != 48 or (tex as Texture2D).get_height() != 48:
+			push_error("[verify] FAIL: %s is not 48x48" % path)
+			quit(1)
+			return
+		print("[verify] loaded ", path)
+
+	var host := Node2D.new()
+	var map := Node2D.new()
+	var ents := Node2D.new()
+	var drops := Node2D.new()
+	var fx := Node2D.new()
+	host.add_child(map)
+	host.add_child(ents)
+	host.add_child(drops)
+	host.add_child(fx)
+	tree_root.add_child(host)
+	var board := MatchBoard.new()
+	board.bind(map, ents, drops, fx, 2, 2)
+	var grid: Array = [
+		[Arena.CELL_HARD, Arena.CELL_EMPTY],
+		[Arena.CELL_SOFT, Arena.CELL_EMPTY],
+	]
+	board.draw_map(grid, host)
+	await process_frame
+	if map.get_child_count() != 4:
+		push_error("[verify] FAIL: expected 4 tile sprites, got %d" % map.get_child_count())
+		quit(1)
+		return
+	for child in map.get_children():
+		if not (child is Sprite2D) or child is Polygon2D:
+			push_error("[verify] FAIL: map cell is not a Sprite2D")
+			quit(1)
+			return
+	var hard: Sprite2D = map.get_child(0)
+	var floor_b: Sprite2D = map.get_child(1)
+	var soft: Sprite2D = map.get_child(2)
+	var floor_a: Sprite2D = map.get_child(3)
+	if hard.texture != MatchBoard.TEX_HARD or soft.texture != MatchBoard.TEX_SOFT:
+		push_error("[verify] FAIL: hard/soft tile texture mismatch")
+		quit(1)
+		return
+	if floor_b.texture != MatchBoard.TEX_FLOOR_B or floor_a.texture != MatchBoard.TEX_FLOOR_A:
+		push_error("[verify] FAIL: empty floor checker mismatch")
+		quit(1)
+		return
+	if hard.centered or hard.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
+		push_error("[verify] FAIL: tile sprite is not top-left nearest")
+		quit(1)
+		return
+	if hard.position != Vector2.ZERO or floor_a.position != Vector2(48, 48):
+		push_error("[verify] FAIL: tile sprite position")
+		quit(1)
+		return
+	grid[1][0] = Arena.CELL_EMPTY
+	var tiles_before: int = map.get_child_count()
+	board.repaint_cells(grid, [Vector2i(0, 1)], host)
+	var painted: Sprite2D = map.get_child(2)
+	if map.get_child_count() != tiles_before or painted.texture != MatchBoard.TEX_FLOOR_B:
+		push_error("[verify] FAIL: soft→empty did not swap to floor_b in place")
+		quit(1)
+		return
+	for child in map.get_children():
+		if child is Polygon2D:
+			push_error("[verify] FAIL: map still has a color polygon")
+			quit(1)
+			return
+	print("[verify] pixel tiles OK")
+	host.queue_free()
 	print("[verify] SUCCESS")
 	quit(0)

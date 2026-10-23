@@ -23,6 +23,7 @@ Godot **4.7.2**：2D 炸弹人 + **WebSocket** 联机（浏览器）+ **专用�
 bomberman-web/
   autoload/Net.gd          # WebSocket host/join + Web 默认 WSS
   autoload/GameState.gd
+  assets/art/pixel/        # 阶段 A：大厅背景 + 地块贴图
   scenes/lobby.tscn        # 大厅（主场景）
   scenes/game.tscn
   scripts/…
@@ -148,7 +149,7 @@ bomberman.jopatk.top {
 
 ## 已知限制
 
-- 色块美术。电脑只在「单机试试」里出现，联机没有人机
+- 大厅和地块已换成像素街机贴图（`assets/art/pixel`，阶段 A）。角色、炸弹、道具仍是色块。电脑只在「单机试试」里出现，联机没有人机
 - 无账号、无断线重连，也不能重连回正在进行的对局
 - 房主是该房间玩家里最小的 peer。专用服进程本身不是玩家；一间房的人走光后这间房消失，其它房间继续
 - 对局中或房间已满（4 人）时拒绝登记，并在客户端提示原因

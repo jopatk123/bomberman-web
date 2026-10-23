@@ -2,9 +2,14 @@ class_name MatchBoard
 extends RefCounted
 ## Map tiles, pawn/bomb/powerup nodes, and short-lived blast or sudden-death polygons.
 ## Does not decide movement, blasts, or wins.
+## Phase A pixel tiles: empty checker, hard, soft. Blast and sudden-death FX stay polygons.
 
 
 const TILE := 48
+const TEX_FLOOR_A: Texture2D = preload("res://assets/art/pixel/tiles/floor_a.png")
+const TEX_FLOOR_B: Texture2D = preload("res://assets/art/pixel/tiles/floor_b.png")
+const TEX_HARD: Texture2D = preload("res://assets/art/pixel/tiles/hard.png")
+const TEX_SOFT: Texture2D = preload("res://assets/art/pixel/tiles/soft.png")
 
 var map_layer: Node2D
 var entities: Node2D
@@ -12,7 +17,7 @@ var powerups_layer: Node2D
 var fx_layer: Node2D
 var cols: int = 13
 var rows: int = 11
-var map_polys: Array = []
+var map_sprites: Array = []
 var sd_visuals: Dictionary = {}
 
 
@@ -29,39 +34,34 @@ func cell_to_pos(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * TILE + TILE * 0.5, cell.y * TILE + TILE * 0.5)
 
 
-func tile_color(grid: Array, x: int, y: int) -> Color:
+func tile_texture(grid: Array, x: int, y: int) -> Texture2D:
 	match int(grid[y][x]):
 		Arena.CELL_HARD:
-			return Color(0.25, 0.28, 0.35)
+			return TEX_HARD
 		Arena.CELL_SOFT:
-			return Color(0.7, 0.45, 0.25)
+			return TEX_SOFT
 		_:
-			return Color(0.15, 0.55, 0.25) if (x + y) % 2 == 0 else Color(0.12, 0.48, 0.22)
+			return TEX_FLOOR_A if (x + y) % 2 == 0 else TEX_FLOOR_B
 
 
 func draw_map(grid: Array, host: Node2D) -> void:
 	for c in map_layer.get_children():
 		(c as Node).queue_free()
-	map_polys.clear()
+	map_sprites.clear()
 	for y in rows:
 		var row: Array = []
 		for x in cols:
-			var poly := Polygon2D.new()
-			poly.polygon = PackedVector2Array([
-				Vector2(0, 0), Vector2(TILE, 0), Vector2(TILE, TILE), Vector2(0, TILE)
-			])
-			poly.position = Vector2(x * TILE, y * TILE)
-			poly.color = tile_color(grid, x, y)
-			map_layer.add_child(poly)
-			row.append(poly)
-		map_polys.append(row)
+			var spr := _make_tile(grid, x, y)
+			map_layer.add_child(spr)
+			row.append(spr)
+		map_sprites.append(row)
 	var map_w := cols * TILE
 	var map_h := rows * TILE
 	host.position = Vector2((960 - map_w) * 0.5, (720 - map_h) * 0.5 - 20)
 
 
 func repaint_cells(grid: Array, cells: Array, host: Node2D) -> void:
-	if map_polys.size() != rows:
+	if map_sprites.size() != rows:
 		draw_map(grid, host)
 		return
 	for c in cells:
@@ -69,9 +69,22 @@ func repaint_cells(grid: Array, cells: Array, host: Node2D) -> void:
 		var y: int = int(c.y)
 		if y < 0 or y >= rows or x < 0 or x >= cols:
 			continue
-		var poly: Polygon2D = map_polys[y][x]
-		if is_instance_valid(poly):
-			poly.color = tile_color(grid, x, y)
+		var row: Array = map_sprites[y]
+		if x >= row.size():
+			draw_map(grid, host)
+			return
+		var spr: Sprite2D = row[x]
+		if is_instance_valid(spr):
+			spr.texture = tile_texture(grid, x, y)
+
+
+func _make_tile(grid: Array, x: int, y: int) -> Sprite2D:
+	var spr := Sprite2D.new()
+	spr.centered = false
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.position = Vector2(x * TILE, y * TILE)
+	spr.texture = tile_texture(grid, x, y)
+	return spr
 
 
 func make_player(peer_id: int, cell: Vector2i, color: Color, display_name: String) -> Node2D:

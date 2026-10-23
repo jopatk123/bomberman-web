@@ -1,5 +1,5 @@
 extends Control
-## Login + waiting room. Room codes live on GameState; this script only wires the UI.
+## Login + waiting room. Browse existing rooms after connect; GameState owns room state.
 
 const _NICK_PATH := "user://nickname.txt"
 const _NICK_LS := "bomberman_nickname"
@@ -9,6 +9,10 @@ const _NICK_LS := "bomberman_nickname"
 @onready var name_edit: LineEdit = %NameEdit
 @onready var join_code_edit: LineEdit = %JoinCodeEdit
 @onready var join_password_edit: LineEdit = %JoinPasswordEdit
+@onready var room_list_label: Label = %RoomListLabel
+@onready var room_list_scroll: ScrollContainer = %RoomListScroll
+@onready var room_list: VBoxContainer = %RoomList
+@onready var create_room_btn: Button = %CreateRoomBtn
 @onready var port_edit: LineEdit = %PortEdit
 @onready var address_edit: LineEdit = %AddressEdit
 @onready var port_row: HBoxContainer = %PortRow
@@ -40,6 +44,8 @@ var _ui_lock := false
 var _pending_register := false
 var _shown_close := false
 var _register_timer: Timer
+var _browsing := false
+var _selected_room_code := ""
 
 
 func _ready() -> void:
@@ -60,6 +66,8 @@ func _ready() -> void:
 		GameState.kicked.connect(_on_kicked)
 	if not GameState.match_starting.is_connected(_on_match_starting):
 		GameState.match_starting.connect(_on_match_starting)
+	if not GameState.lobby_directory_changed.is_connected(_on_lobby_directory_changed):
+		GameState.lobby_directory_changed.connect(_on_lobby_directory_changed)
 	_enter_initial_screen()
 
 
@@ -86,8 +94,8 @@ func _enter_initial_screen() -> void:
 
 func _default_login_hint() -> String:
 	if _web:
-		return "填写昵称。房间码留空会新开一间"
-	return "填写昵称。房间码留空会新开一间，或本机开房"
+		return "填写昵称后连接，再选房间或新建"
+	return "填写昵称后连接选房；也可本机开房"
 
 
 func _apply_platform_chrome() -> void:
@@ -110,6 +118,10 @@ func _setup_maps() -> void:
 func _connect_controls() -> void:
 	if not enter_btn.pressed.is_connected(_on_enter_pressed):
 		enter_btn.pressed.connect(_on_enter_pressed)
+	if not create_room_btn.pressed.is_connected(_on_create_room_pressed):
+		create_room_btn.pressed.connect(_on_create_room_pressed)
+	if not join_password_edit.text_submitted.is_connected(_on_join_password_submitted):
+		join_password_edit.text_submitted.connect(_on_join_password_submitted)
 	if not host_btn.pressed.is_connected(_on_host_pressed):
 		host_btn.pressed.connect(_on_host_pressed)
 	if not solo_btn.pressed.is_connected(_on_solo_pressed):
@@ -161,12 +173,16 @@ func _on_name_submitted(_text: String) -> void:
 func _on_enter_pressed() -> void:
 	_shown_close = false
 	_commit_nickname()
+	if _browsing and Net.is_client and Net.is_online():
+		GameState.request_lobby_directory()
+		login_status.text = "已刷新房间列表"
+		return
 	_set_login_busy(true)
 	login_status.text = "正在连接…"
 	var err := Net.join(address_edit.text.strip_edges())
 	if err != OK:
 		_set_login_busy(false)
-		login_status.text = "进入失败：%s" % error_string(err)
+		login_status.text = "连接失败：%s" % error_string(err)
 
 
 func _on_host_pressed() -> void:
@@ -211,12 +227,13 @@ func _on_solo_pressed() -> void:
 
 
 func _on_connected() -> void:
-	_pending_register = true
-	login_status.text = "已连接，登记中…"
-	_arm_register_timeout()
-	GameState._rpc_register_player.rpc_id(
-		1, GameState.local_player_name, join_password_edit.text.strip_edges(), join_code_edit.text
-	)
+	_browsing = true
+	_pending_register = false
+	_stop_register_timer()
+	_set_login_busy(false)
+	login_status.text = "已连接，选择房间或新建"
+	_set_browse_chrome(true)
+	GameState.request_lobby_directory()
 
 
 func _on_fail() -> void:
@@ -235,6 +252,13 @@ func _on_disc() -> void:
 
 
 func _on_register_rejected(message: String) -> void:
+	# Still connected in the lobby browser — keep the list, show why join failed.
+	if _browsing and Net.is_client and Net.is_online() and not _local_in_room():
+		_pending_register = false
+		_stop_register_timer()
+		_set_login_busy(false)
+		login_status.text = message if not message.is_empty() else "无法进入房间"
+		return
 	_show_closed(message if not message.is_empty() else "无法进入房间")
 
 
@@ -244,6 +268,8 @@ func _on_kicked(message: String) -> void:
 
 func _show_closed(message: String) -> void:
 	_pending_register = false
+	_browsing = false
+	_selected_room_code = ""
 	_stop_register_timer()
 	_shown_close = true
 	_ui_lock = true
@@ -277,6 +303,8 @@ func _on_room_changed() -> void:
 		return
 	if _local_in_room():
 		_pending_register = false
+		_browsing = false
+		_selected_room_code = ""
 		_stop_register_timer()
 		_show_room()
 		return
@@ -307,6 +335,8 @@ func _on_start_pressed() -> void:
 
 func _on_leave_pressed() -> void:
 	_pending_register = false
+	_browsing = false
+	_selected_room_code = ""
 	_stop_register_timer()
 	_shown_close = true
 	_ui_lock = true
@@ -374,12 +404,140 @@ func _go_to_game() -> void:
 	get_tree().change_scene_to_file("res://scenes/game.tscn")
 
 
+
+func _on_lobby_directory_changed() -> void:
+	if login_box.visible:
+		_refresh_room_list()
+
+
+func _set_browse_chrome(on: bool) -> void:
+	room_list_label.visible = true
+	room_list_scroll.visible = true
+	create_room_btn.visible = true
+	create_room_btn.disabled = not on
+	enter_btn.text = "刷新列表" if on else "连接服务器"
+	if on:
+		login_status.text = "已连接，选择房间或新建" if login_status.text.begins_with("正在") or login_status.text.is_empty() else login_status.text
+
+
+func _refresh_room_list() -> void:
+	if room_list == null:
+		return
+	for child in room_list.get_children():
+		room_list.remove_child(child)
+		child.free()
+	var entries: Array = GameState.lobby_directory
+	if entries.is_empty():
+		var empty := Label.new()
+		empty.text = "还没有房间，点下方新建"
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		room_list.add_child(empty)
+		_selected_room_code = ""
+		return
+	for raw in entries:
+		var entry: Dictionary = raw
+		var code := str(entry.get("code", ""))
+		var count := int(entry.get("count", 0))
+		var cap := int(entry.get("max", GameState.MAX_PLAYERS))
+		var in_match := bool(entry.get("in_match", false))
+		var locked := bool(entry.get("locked", false))
+		var who := str(entry.get("who", ""))
+		var state := "对局中" if in_match else "等待中"
+		var lock_mark := "🔒 " if locked else ""
+		var btn := Button.new()
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(0, 40)
+		btn.text = "%s%s · %s %d/%d" % [lock_mark, code, state, count, cap]
+		if who != "":
+			btn.text += " · %s" % who
+		btn.disabled = in_match or count >= cap or not _browsing
+		if code == _selected_room_code:
+			btn.modulate = Color(1.15, 1.2, 0.85, 1.0)
+		var captured := code
+		btn.pressed.connect(func() -> void: _on_room_row_pressed(captured))
+		room_list.add_child(btn)
+
+
+func _on_room_row_pressed(code: String) -> void:
+	if not _browsing or code.is_empty():
+		return
+	_selected_room_code = code
+	_refresh_room_list()
+	var locked := false
+	for raw in GameState.lobby_directory:
+		if str(raw.get("code", "")) == code:
+			locked = bool(raw.get("locked", false))
+			break
+	if locked and join_password_edit.text.strip_edges().is_empty():
+		login_status.text = "房间 %s 需要密码，填好后回车或再点一次" % code
+		join_password_edit.grab_focus()
+		return
+	_join_selected_room()
+
+
+
+func _on_join_password_submitted(_text: String) -> void:
+	if not _browsing:
+		return
+	if _selected_room_code.is_empty():
+		login_status.text = "先点选一个房间"
+		return
+	_on_room_row_pressed(_selected_room_code)
+
+
+func _on_create_room_pressed() -> void:
+	_commit_nickname()
+	if not _browsing or not Net.is_client or not Net.is_online():
+		login_status.text = "请先连接服务器"
+		return
+	_selected_room_code = ""
+	_start_register("", join_password_edit.text.strip_edges())
+
+
+func _join_selected_room() -> void:
+	if _selected_room_code.is_empty():
+		return
+	var locked := false
+	var in_match := false
+	var count := 0
+	var cap := GameState.MAX_PLAYERS
+	for raw in GameState.lobby_directory:
+		if str(raw.get("code", "")) == _selected_room_code:
+			locked = bool(raw.get("locked", false))
+			in_match = bool(raw.get("in_match", false))
+			count = int(raw.get("count", 0))
+			cap = int(raw.get("max", GameState.MAX_PLAYERS))
+			break
+	if in_match:
+		login_status.text = GameState.MSG_IN_MATCH
+		return
+	if count >= cap:
+		login_status.text = GameState.MSG_FULL
+		return
+	var pw := join_password_edit.text.strip_edges()
+	if locked and pw.is_empty():
+		login_status.text = "请先填写房间密码"
+		return
+	_start_register(_selected_room_code, pw)
+
+
+func _start_register(code: String, password: String) -> void:
+	_pending_register = true
+	_set_login_busy(true)
+	login_status.text = "正在进入房间…"
+	_arm_register_timeout()
+	GameState._rpc_register_player.rpc_id(1, GameState.local_player_name, password, code)
+
+
 func _show_login(message: String) -> void:
 	login_box.visible = true
 	room_box.visible = false
 	subtitle.visible = true
-	subtitle.text = "房间码留空会新开一间"
+	subtitle.text = "连接后选择房间，或新建一间"
+	_browsing = Net.is_client and Net.is_online()
+	_set_browse_chrome(_browsing)
 	_set_login_busy(false)
+	_refresh_room_list()
 	if not message.is_empty():
 		login_status.text = message
 
@@ -395,6 +553,7 @@ func _set_login_busy(busy: bool) -> void:
 	enter_btn.disabled = busy
 	host_btn.disabled = busy
 	solo_btn.disabled = busy
+	create_room_btn.disabled = busy or not _browsing
 
 
 func _refresh_room() -> void:

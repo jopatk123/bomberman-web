@@ -9,6 +9,7 @@ signal match_starting
 signal map_settings_changed
 signal register_rejected(message: String)
 signal kicked(message: String)
+signal lobby_directory_changed
 
 const MAX_PLAYERS := 4
 const MSG_FULL := "房间已满（最多 4 人）"
@@ -50,6 +51,18 @@ var rooms: Dictionary = {}
 var peer_room: Dictionary = {}
 ## Room this peer is sitting in. Empty on a dedicated server and before register.
 var room_code: String = ""
+## Public lobby catalog for the login browser (no passwords). Clients mirror from authority.
+var lobby_directory: Array = []
+
+
+func _ready() -> void:
+	if not Net.peer_connected.is_connected(_on_net_peer_connected):
+		Net.peer_connected.connect(_on_net_peer_connected)
+
+
+func _on_net_peer_connected(peer_id: int) -> void:
+	if Net.is_authority():
+		push_lobby_directory_to(peer_id)
 
 
 func reset_lobby() -> void:
@@ -61,9 +74,11 @@ func reset_lobby() -> void:
 	host_peer_id = 0
 	room_password = ""
 	solo_bot = false
+	lobby_directory.clear()
 	# Keep map_id / seed_input as lobby preferences across disconnects.
 	soft_seed = -1
 	player_list_changed.emit()
+	lobby_directory_changed.emit()
 
 
 func consume_notice() -> String:
@@ -196,6 +211,61 @@ func room_index_text() -> String:
 
 ## Empty string means the player was accepted (or was already in a room).
 ## An empty code opens a new room. A code joins that room.
+func make_lobby_directory() -> Array:
+	var out: Array = []
+	var codes: Array = rooms.keys()
+	codes.sort()
+	for code in codes:
+		var room: Dictionary = rooms[code]
+		var names: Array = []
+		for id in _sorted_ids(room.players):
+			names.append(str(room.players[id].get("name", id)))
+		out.append({
+			"code": str(code),
+			"count": int(room.players.size()),
+			"max": MAX_PLAYERS,
+			"in_match": bool(room.in_match),
+			"locked": not str(room.get("room_password", "")).is_empty(),
+			"who": ", ".join(names),
+		})
+	return out
+
+
+func apply_lobby_directory(entries: Array) -> void:
+	lobby_directory = entries.duplicate(true)
+	lobby_directory_changed.emit()
+
+
+func broadcast_lobby_directory() -> void:
+	if not Net.is_authority():
+		return
+	var payload := make_lobby_directory()
+	if not Net.is_online():
+		apply_lobby_directory(payload)
+		return
+	for pid in multiplayer.get_peers():
+		_rpc_sync_lobby_directory.rpc_id(int(pid), payload)
+	apply_lobby_directory(payload)
+
+
+func push_lobby_directory_to(peer_id: int) -> void:
+	if not Net.is_authority() or peer_id <= 0:
+		return
+	if not Net.is_online():
+		apply_lobby_directory(make_lobby_directory())
+		return
+	_rpc_sync_lobby_directory.rpc_id(peer_id, make_lobby_directory())
+
+
+func request_lobby_directory() -> void:
+	if Net.is_online() and Net.is_client:
+		_rpc_request_lobby_directory.rpc_id(1)
+		return
+	if Net.is_authority():
+		apply_lobby_directory(make_lobby_directory())
+
+
+
 func try_register(sender: int, player_name: String, password: String, code: String = "") -> String:
 	if sender <= 0:
 		return MSG_BAD_PASSWORD
@@ -386,6 +456,7 @@ func broadcast_room(code: String = "") -> void:
 		_rpc_sync_players.rpc_id(pid, snap)
 	if Net.is_dedicated():
 		player_list_changed.emit()
+	broadcast_lobby_directory()
 
 
 func install_roster(code: String, snap: Dictionary) -> Dictionary:
@@ -441,6 +512,7 @@ func drop_waiting_peer(id: int) -> void:
 			in_match = false
 			room_password = ""
 		player_list_changed.emit()
+		broadcast_lobby_directory()
 		return
 	rooms[code].host_peer_id = _smallest(rooms[code].players)
 	_mirror(code)
@@ -465,6 +537,7 @@ func dissolve_room(code: String) -> void:
 		in_match = false
 		room_password = ""
 	player_list_changed.emit()
+	broadcast_lobby_directory()
 
 
 func submit_ready(is_ready: bool) -> void:
@@ -543,7 +616,8 @@ func _rpc_register_player(player_name: String, password: String, code: String = 
 		return
 	var err := try_register(sender, player_name, password, code)
 	if err != "":
-		_reject_and_drop(sender, err)
+		# Keep the TCP session so the login browser can pick another room.
+		_rpc_register_rejected.rpc_id(sender, err)
 		return
 	broadcast_room(str(peer_room.get(sender, "")))
 
@@ -551,6 +625,18 @@ func _rpc_register_player(player_name: String, password: String, code: String = 
 @rpc("authority", "reliable")
 func _rpc_register_rejected(message: String) -> void:
 	register_rejected.emit(message)
+
+
+@rpc("authority", "reliable")
+func _rpc_sync_lobby_directory(entries: Array) -> void:
+	apply_lobby_directory(entries)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_request_lobby_directory() -> void:
+	if not Net.is_authority():
+		return
+	push_lobby_directory_to(multiplayer.get_remote_sender_id())
 
 
 @rpc("any_peer", "reliable")

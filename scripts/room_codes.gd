@@ -14,7 +14,7 @@ static func fresh(code: String, password: String) -> Dictionary:
 		"players": {},
 		"host_peer_id": 0,
 		"room_password": password.strip_edges(),
-		"map_id": 0,
+		"map_id": Arena.MAP_RANDOM,
 		"seed_input": "",
 		"soft_seed": -1,
 		"in_match": false,

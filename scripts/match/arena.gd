@@ -10,6 +10,9 @@ const CELL_HARD := 1
 const CELL_SOFT := 2
 const SOFT_CHANCE := 0.55
 
+## Lobby-only: pick a concrete layout when the match starts.
+const MAP_RANDOM := 4  # OptionButton treats -1 as "use index"; keep out of layout clamp range
+
 enum MapId { CLASSIC = 0, OPEN = 1, CROSS = 2, MAZE = 3 }
 
 
@@ -17,7 +20,27 @@ static func clamp_map_id(id: int) -> int:
 	return clampi(id, int(MapId.CLASSIC), int(MapId.MAZE))
 
 
+static func is_random_map(id: int) -> bool:
+	return int(id) == MAP_RANDOM
+
+
+## Allowed lobby preference: RANDOM or a concrete MapId.
+static func lobby_map_id(id: int) -> int:
+	if is_random_map(id):
+		return MAP_RANDOM
+	return clamp_map_id(id)
+
+
+## Concrete layout for the current match (rolls when preference is RANDOM).
+static func resolve_map_id(id: int) -> int:
+	if is_random_map(id):
+		return randi_range(int(MapId.CLASSIC), int(MapId.MAZE))
+	return clamp_map_id(id)
+
+
 static func map_name(id: int) -> String:
+	if is_random_map(id):
+		return "随机"
 	match clamp_map_id(id):
 		MapId.CLASSIC:
 			return "经典"
@@ -32,6 +55,8 @@ static func map_name(id: int) -> String:
 
 
 static func map_desc(id: int) -> String:
+	if is_random_map(id):
+		return "开局时在四种地图里随机"
 	match clamp_map_id(id):
 		MapId.CLASSIC:
 			return "标准柱阵，攻守均衡"

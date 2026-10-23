@@ -298,6 +298,7 @@ autowrap_mode = 3
 text = "标准柱阵，攻守均衡"
 
 [node name="SeedRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox"]
+visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
 
@@ -313,9 +314,10 @@ size_flags_horizontal = 3
 placeholder_text = "空=随机；整数=固定"
 
 [node name="MapHint" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
-text = "只有房主能改地图、种子和密码"
+text = "只有房主能改地图和密码"
 autowrap_mode = 3
 
 [node name="PlayersTitle" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]

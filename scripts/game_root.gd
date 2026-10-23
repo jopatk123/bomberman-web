@@ -109,10 +109,10 @@ func _ready() -> void:
 	if Net.is_dedicated():
 		visible = false
 		hud.visible = false
-	map_id = Arena.clamp_map_id(_room_map_id())
+	map_id = Arena.resolve_map_id(_room_map_id())
 	grid = Arena.build_base_grid(map_id)
 	if Net.is_authority():
-		map_id = Arena.clamp_map_id(_room_map_id())
+		map_id = Arena.resolve_map_id(_room_map_id())
 		soft_seed = _resolve_seed()
 		_publish_seed()
 		var roster := _roster().duplicate(true)
@@ -226,11 +226,15 @@ func _resolve_seed() -> int:
 
 
 func _publish_seed() -> void:
+	# Keep lobby RANDOM preference so rematch can roll a new layout.
+	var preferred := _room_map_id()
 	if room_code != "" and GameState.rooms.has(room_code):
-		GameState.rooms[room_code].map_id = map_id
+		if not Arena.is_random_map(preferred):
+			GameState.rooms[room_code].map_id = map_id
 		GameState.rooms[room_code].soft_seed = soft_seed
 	if room_code == "" or GameState.room_code == room_code:
-		GameState.map_id = map_id
+		if not Arena.is_random_map(preferred):
+			GameState.map_id = map_id
 		GameState.soft_seed = soft_seed
 
 
@@ -1025,8 +1029,8 @@ func _restart_match() -> void:
 		return
 	if Net.is_online() and roster.size() < 2:
 		return
-	# Keep map_id; rematch always rolls a new soft_seed.
-	map_id = Arena.clamp_map_id(map_id if map_id >= 0 else _room_map_id())
+	# RANDOM preference re-rolls layout; fixed map stays. Soft seed always new.
+	map_id = Arena.resolve_map_id(_room_map_id())
 	soft_seed = randi() & 0x7fffffff
 	_publish_seed()
 	bombs.clear()

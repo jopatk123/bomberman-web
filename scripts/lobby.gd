@@ -3,6 +3,8 @@ extends Control
 
 const _NICK_PATH := "user://nickname.txt"
 const _NICK_LS := "bomberman_nickname"
+## Auto-refresh room list while browsing (seconds).
+const DIRECTORY_REFRESH_SEC := 5.0
 
 @onready var subtitle: Label = %Subtitle
 @onready var login_box: VBoxContainer = %LoginBox
@@ -46,6 +48,7 @@ var _shown_close := false
 var _register_timer: Timer
 var _browsing := false
 var _selected_room_code := ""
+var _dir_timer: Timer
 
 
 func _ready() -> void:
@@ -68,6 +71,8 @@ func _ready() -> void:
 		GameState.match_starting.connect(_on_match_starting)
 	if not GameState.lobby_directory_changed.is_connected(_on_lobby_directory_changed):
 		GameState.lobby_directory_changed.connect(_on_lobby_directory_changed)
+	_setup_directory_timer()
+	_hide_seed_row()
 	_enter_initial_screen()
 
 
@@ -90,12 +95,13 @@ func _enter_initial_screen() -> void:
 		_show_room()
 		return
 	_show_login(notice if not notice.is_empty() else _default_login_hint())
+	call_deferred("_auto_connect_if_needed")
 
 
 func _default_login_hint() -> String:
 	if _web:
-		return "填写昵称后连接，再选房间或新建"
-	return "填写昵称后连接选房；也可本机开房"
+		return "正在自动连接服务器…"
+	return "正在自动连接；也可本机开房"
 
 
 func _apply_platform_chrome() -> void:
@@ -109,10 +115,51 @@ func _apply_platform_chrome() -> void:
 		port_row.visible = true
 
 
+func _hide_seed_row() -> void:
+	var row := seed_edit.get_parent() if seed_edit else null
+	if row is CanvasItem:
+		row.visible = false
+	var hint := get_node_or_null("%MapHint")
+	if hint is Label:
+		hint.text = "只有房主能改地图和密码"
+
+
+func _setup_directory_timer() -> void:
+	_dir_timer = Timer.new()
+	_dir_timer.wait_time = DIRECTORY_REFRESH_SEC
+	_dir_timer.one_shot = false
+	_dir_timer.autostart = false
+	add_child(_dir_timer)
+	_dir_timer.timeout.connect(_on_directory_refresh_tick)
+
+
+func _on_directory_refresh_tick() -> void:
+	if not _browsing or not Net.is_client or not Net.is_online():
+		return
+	if not login_box.visible or _pending_register:
+		return
+	GameState.request_lobby_directory()
+
+
+func _auto_connect_if_needed() -> void:
+	# Headless verify scripts / dedicated path should not dial out.
+	if DisplayServer.get_name() == "headless":
+		return
+	if Net.is_dedicated() or Net.is_server:
+		return
+	if _browsing or Net.is_online() or room_box.visible:
+		return
+	_on_enter_pressed()
+
+
 func _setup_maps() -> void:
 	map_option.clear()
+	map_option.add_item(Arena.map_name(Arena.MAP_RANDOM), Arena.MAP_RANDOM)
 	for id in range(int(Arena.MapId.CLASSIC), int(Arena.MapId.MAZE) + 1):
 		map_option.add_item(Arena.map_name(id), id)
+	var idx := map_option.get_item_index(Arena.MAP_RANDOM)
+	if idx >= 0:
+		map_option.select(idx)
 
 
 func _connect_controls() -> void:
@@ -371,8 +418,8 @@ func _push_map_settings() -> void:
 	if _updating_ui or not GameState.is_local_host():
 		return
 	var idx := map_option.selected
-	var next_map := map_option.get_item_id(idx) if idx >= 0 else 0
-	var seed_text := seed_edit.text
+	var next_map := map_option.get_item_id(idx) if idx >= 0 else Arena.MAP_RANDOM
+	var seed_text := ""
 	if next_map == GameState.map_id and seed_text == GameState.seed_input:
 		return
 	GameState.request_map_settings(next_map, seed_text)
@@ -418,6 +465,10 @@ func _set_browse_chrome(on: bool) -> void:
 	enter_btn.text = "刷新列表" if on else "连接服务器"
 	if on:
 		login_status.text = "已连接，选择房间或新建" if login_status.text.begins_with("正在") or login_status.text.is_empty() else login_status.text
+		if _dir_timer and _dir_timer.is_stopped():
+			_dir_timer.start()
+	elif _dir_timer:
+		_dir_timer.stop()
 
 
 func _refresh_room_list() -> void:
@@ -585,26 +636,24 @@ func _refresh_room() -> void:
 		room_status.text = "%s · 等待房主开始" % base
 	server_note.visible = dedicated
 	room_access.text = "公开房" if GameState.room_password.is_empty() else "需要密码"
-	var mid := Arena.clamp_map_id(GameState.map_id)
+	var mid := Arena.lobby_map_id(GameState.map_id)
 	var map_idx := map_option.get_item_index(mid)
 	map_option.set_block_signals(true)
 	seed_edit.set_block_signals(true)
 	if map_idx >= 0 and map_option.selected != map_idx:
 		map_option.select(map_idx)
+	elif map_idx < 0:
+		var ridx := map_option.get_item_index(Arena.MAP_RANDOM)
+		if ridx >= 0:
+			map_option.select(ridx)
+			mid = Arena.MAP_RANDOM
 	map_desc_label.text = Arena.map_desc(mid)
 	map_option.disabled = not host
-	seed_edit.editable = host
-	if not seed_edit.has_focus() and seed_edit.text != GameState.seed_input:
-		seed_edit.text = GameState.seed_input
-	if host:
-		room_password_edit.editable = true
-		room_password_edit.placeholder_text = "空为公开房"
-		if not room_password_edit.has_focus() and room_password_edit.text != GameState.room_password:
-			room_password_edit.text = GameState.room_password
-	else:
-		room_password_edit.editable = false
-		room_password_edit.text = ""
-		room_password_edit.placeholder_text = "房主已设置密码" if not GameState.room_password.is_empty() else "空为公开房"
+	seed_edit.editable = false
+	seed_edit.text = ""
+	var seed_row := seed_edit.get_parent()
+	if seed_row is CanvasItem:
+		seed_row.visible = false
 	seed_edit.set_block_signals(false)
 	map_option.set_block_signals(false)
 	_rebuild_players()

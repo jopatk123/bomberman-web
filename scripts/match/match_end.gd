@@ -1,7 +1,7 @@
 class_name MatchEnd
 extends RefCounted
 ## Win, draw, rematch permission, and mid-match forfeit decisions.
-## Scene changes and death RPCs stay in game_root.
+## Scene changes stay in MatchSession. Death RPCs stay in game_root.
 
 
 ## {finished, winner_name}. A one-player match does not end when that player is still alive.

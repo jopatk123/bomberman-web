@@ -74,9 +74,9 @@ autoload Net / GameState   ← 仅连接与大厅快照
 - `PlayerStats` — 属性默认值、拾取加减、上限、冷却、封包。短包保留本地穿透
 - `BombRecord` — 炸弹字典的字段形状与持有数量
 - `PowerupDrop` — 软墙掉落（概率、占格、致死格）。随机数由调用方传入
-- `MatchEnd` — 胜负 / 平局 / 再来一局资格 / 中途退出是否判负。场景切换仍在 `game_root`
+- `MatchEnd` — 胜负 / 平局 / 再来一局资格 / 中途退出是否判负。场景切换在 `MatchSession`
 
-画面不进 `match/`：`MatchBoard` 画格子和实体，`MatchHud` 画文字和结算面板，`ClientPredict` 保存客机预演链和影子炸弹。`@rpc` 仍只在 `game_root`。
+画面不进 `match/`：`MatchBoard` 画格子和实体，`MatchHud` 画文字和结算面板，`ClientPredict` 保存客机预演链和影子炸弹。`MatchSession` 管离开、被踢、断线、中途弃权和专用服空房回大厅。`@rpc` 仍只在 `game_root`。
 
 ## 大厅 / 房间
 

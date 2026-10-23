@@ -6,7 +6,8 @@ extends Node2D
 ## PlayerStats — caps, pickup, stat packs.
 ## BombRecord — bomb dictionary shape.
 ## PowerupDrop — soft-wall drops.
-## MatchEnd — win, draw, rematch, forfeit.
+## MatchEnd — win, draw, rematch, forfeit decisions.
+## MatchSession — leave, kick, disconnect, forfeit apply, empty dedicated room.
 ## BlastRules / SuddenDeath / KickRules / Arena / MatchBot / MovePredict — as before.
 ## MatchBoard paints tiles and entities. MatchHud paints labels.
 ## ClientPredict stores the local move chain and bomb ghost.
@@ -64,13 +65,10 @@ var sudden: SuddenDeath = SuddenDeath.new()
 var _blast_hits: Array[Vector2i] = []
 ## Seconds until the next authority clock sync during the countdown window.
 var _clock_sync_wait: float = 0.0
-## Dedicated server already left the match scene for an empty room.
-var _left_for_lobby: bool = false
-## Local player is leaving for the lobby; ignore disconnects caused by our own close().
-var _leaving: bool = false
 var _board := MatchBoard.new()
 var _hud := MatchHud.new()
 var _predict := ClientPredict.new()
+var _session := MatchSession.new()
 var _sfx: Node
 
 ## Forwarded so existing checks can read the board's fire polygons.
@@ -972,24 +970,15 @@ func _restart_match() -> void:
 
 
 func _on_back() -> void:
-	if Net.is_dedicated() or _leaving:
-		return
-	if not Net.is_online():
-		_leaving = true
-		GameState.in_match = false
-		get_tree().change_scene_to_file("res://scenes/lobby.tscn")
-		return
-	_leave_match("已离开房间")
+	_session.on_back(get_tree())
 
 
 func _on_kicked_out(message: String) -> void:
-	_leave_match(message if not message.is_empty() else "你已被请出房间")
+	_session.on_kicked(get_tree(), message)
 
 
 func _on_net_disconnected() -> void:
-	if _leaving or Net.is_dedicated() or Net.is_server:
-		return
-	_leave_match("与服务器断开")
+	_session.on_disconnected(get_tree())
 
 
 func _on_roster_changed() -> void:
@@ -997,55 +986,14 @@ func _on_roster_changed() -> void:
 		_refresh_rematch_button()
 
 
-func _leave_match(notice: String) -> void:
-	if _leaving or Net.is_dedicated():
-		return
-	_leaving = true
-	if Net.is_online():
-		Net.close()
-	GameState.reset_lobby()
-	GameState.pending_notice = notice
-	get_tree().change_scene_to_file("res://scenes/lobby.tscn")
-
-
 func _on_match_peer_out(id: int) -> void:
-	if _leaving or _left_for_lobby or not Net.is_authority():
-		return
-	_forfeit_peer(int(id))
+	_session.on_peer_out(id, _forfeit_peer)
 
 
 ## Drop a peer who left mid-match. Kill them before erasing the roster entry so a
 ## 2-player game still counts as a win, not as the solo "don't end" case.
 func _forfeit_peer(id: int) -> void:
-	var plan: Dictionary = MatchEnd.forfeit_plan(GameState.players, alive, id)
-	if bool(plan.skip):
-		return
-	if bool(plan.empty):
-		GameState.players.erase(id)
-		alive.erase(id)
-		GameState.recompute_host()
-		if Net.is_dedicated():
-			_return_dedicated_to_lobby()
-		return
-	if bool(plan.kill):
-		_kill_player(id, str(plan.reason))
-	GameState.players.erase(id)
-	alive.erase(id)
-	GameState.recompute_host()
-	if Net.is_online():
-		GameState.broadcast_room()
-	if match_over:
-		_refresh_rematch_button()
-
-
-func _return_dedicated_to_lobby() -> void:
-	if _left_for_lobby:
-		return
-	_left_for_lobby = true
-	_leaving = true
-	GameState.reset_lobby()
-	print("[Game] Dedicated room empty, returning to waiting room")
-	get_tree().call_deferred("change_scene_to_file", "res://scenes/lobby.tscn")
+	_session.forfeit_peer(get_tree(), id, alive, match_over, _kill_player, _refresh_rematch_button)
 
 
 func _refresh_stats_hud() -> void:

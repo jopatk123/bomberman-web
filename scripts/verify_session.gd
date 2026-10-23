@@ -24,7 +24,28 @@ func _run() -> void:
 		return
 	print("[verify_session] rematch permission OK")
 
+	var session = load("res://scripts/match_session.gd").new()
+	var skipped_kill := false
+	session.forfeit_peer(null, 0, {1: true}, false, func(_id, _reason): skipped_kill = true, func(): pass)
+	if skipped_kill or session.leaving:
+		_fail("unknown peer was forfeited")
+		return
+	session.leaving = true
 	var gs = root.get_node("GameState")
+	session.leave(null, "不会切场景")
+	if gs.pending_notice == "不会切场景":
+		_fail("second leave still switched scenes")
+		return
+	session.leaving = false
+	gs.players = {7: {"name": "丁", "color_idx": 0, "ready": true}}
+	var last_alive := {7: true}
+	var killed_last := false
+	session.forfeit_peer(null, 7, last_alive, false, func(_id, _reason): killed_last = true, func(): pass)
+	if killed_last or gs.players.has(7) or last_alive.has(7) or session.left_for_lobby:
+		_fail("last offline peer did not clear the room quietly")
+		return
+	print("[verify_session] session guards OK")
+
 	gs.players = {
 		1: {"name": "甲", "color_idx": 0, "ready": true},
 		2: {"name": "乙", "color_idx": 1, "ready": true},

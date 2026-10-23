@@ -2,7 +2,7 @@ class_name MatchBoard
 extends RefCounted
 ## Map tiles, pawn/bomb/powerup nodes, and short-lived blast or sudden-death polygons.
 ## Does not decide movement, blasts, or wins.
-## Phase A pixel tiles: empty checker, hard, soft. Blast and sudden-death FX stay polygons.
+## Pixel tiles (floor/hard/soft) + entity sprites on player/bomb. Blast and sudden-death FX stay polygons.
 
 
 const TILE := 48

@@ -40,7 +40,14 @@ func _run() -> void:
 		push_error("[verify_fx] FAIL: no bomb")
 		quit(1)
 		return
-	var bid: int = int(game.bombs.keys()[0])
+	var bid := -1
+	for k in game.bombs.keys():
+		if int(game.bombs[k].get("owner", -1)) == pid and int(k) > bid:
+			bid = int(k)
+	if bid < 0:
+		push_error("[verify_fx] FAIL: human bomb missing")
+		quit(1)
+		return
 	# Force explode with soft in ray: set bomb next to soft
 	game.bombs[bid].x = soft.x - 1 if soft.x > cell.x else soft.x + 1
 	game.bombs[bid].y = soft.y

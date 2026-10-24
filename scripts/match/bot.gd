@@ -1,10 +1,12 @@
 class_name MatchBot
 extends RefCounted
-## Solo opponent. Pure decision: flee blasts, bomb soft walls or the human, otherwise walk.
-## game_root applies the result only while GameState.solo_bot is set. No RPC here.
+## One fighter's decision for a single tick. Flee blasts, grab a nearby powerup,
+## bomb soft walls or another fighter when an escape exists, otherwise walk.
+## The authority applies this for every MatchFill bot. No RPC here.
 
-const PEER_ID := 2
-const NAME := "电脑"
+## First filled slot. MatchFill.bot_peer_id(1) is the source of truth.
+const PEER_ID := -1001
+const NAME := "人机1"
 ## Bombs still on a normal fuse count as danger. Long debug timers do not.
 const DANGER_TIME := 2.05
 
@@ -18,8 +20,9 @@ const _DIRS: Array[Vector2i] = [
 ]
 
 
-## view: grid, cols, rows, cell, blast_range, can_place, bombs[], others[], lethal[]
+## view: grid, cols, rows, cell, blast_range, can_place, bombs[], others[], lethal[], powerups[]
 ## bombs[]: {x, y, timer, range, pierce}
+## powerups[]: Vector2i cells. Decisions are a pure function of this view.
 ## Returns {action, dx, dy}.
 static func decide(view: Dictionary) -> Dictionary:
 	var cell: Vector2i = view.cell
@@ -32,6 +35,9 @@ static func decide(view: Dictionary) -> Dictionary:
 		if flee != Vector2i.ZERO:
 			return _move(flee)
 		return _wait()
+	var grab := _adjacent_powerup(view, cell, danger, blocked)
+	if grab != Vector2i.ZERO:
+		return _move(grab)
 	if bool(view.get("can_place", false)) and _worth_placing(view, cell, danger, blocked):
 		return {"action": Action.BOMB, "dx": 0, "dy": 0}
 	var others: Array = view.get("others", [])
@@ -120,10 +126,24 @@ static func _worth_placing(view: Dictionary, cell: Vector2i, danger: Dictionary,
 	return false
 
 
+static func _adjacent_powerup(view: Dictionary, cell: Vector2i, danger: Dictionary, blocked: Dictionary) -> Vector2i:
+	for raw in view.get("powerups", []):
+		var p := raw as Vector2i
+		if absi(p.x - cell.x) + absi(p.y - cell.y) != 1:
+			continue
+		if not _standable(view, p) or blocked.has(p) or danger.has(p):
+			continue
+		return p - cell
+	return Vector2i.ZERO
+
+
 static func _is_interest(view: Dictionary, cell: Vector2i, others: Array) -> bool:
 	var grid: Array = view.grid
 	var cols := int(view.cols)
 	var rows := int(view.rows)
+	for raw in view.get("powerups", []):
+		if (raw as Vector2i) == cell:
+			return true
 	for d in _DIRS:
 		var n: Vector2i = cell + d
 		if n.x < 0 or n.y < 0 or n.x >= cols or n.y >= rows:

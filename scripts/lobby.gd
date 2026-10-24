@@ -260,11 +260,7 @@ func _on_solo_pressed() -> void:
 		"color_idx": 0,
 		"ready": true,
 	}
-	GameState.players[MatchBot.PEER_ID] = {
-		"name": MatchBot.NAME,
-		"color_idx": 1,
-		"ready": true,
-	}
+	# Bots are not lobby seats. game_root fills the other three corners at match start.
 	GameState.solo_bot = true
 	GameState.host_peer_id = 1
 	GameState.in_match = true

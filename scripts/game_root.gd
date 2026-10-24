@@ -8,7 +8,8 @@ extends Node2D
 ## PowerupDrop — soft-wall drops.
 ## MatchEnd — win, draw, rematch, forfeit decisions.
 ## MatchSession — leave, kick, disconnect, forfeit apply, empty dedicated room.
-## BlastRules / SuddenDeath / KickRules / Arena / MatchBot / MovePredict — as before.
+## BlastRules / SuddenDeath / KickRules / Arena / MatchBot / MatchFill / MovePredict — as before.
+## MatchFill adds bots at setup time. The authority ticks them; clients only render.
 ## MatchBoard paints tiles and entities. MatchHud paints labels.
 ## ClientPredict stores the local move chain and bomb ghost.
 
@@ -71,6 +72,8 @@ var _predict := ClientPredict.new()
 var _session := MatchSession.new()
 ## Set from MatchHost before this node enters the tree. Empty for offline solo.
 var room_code: String = ""
+## Fighters for this round, including bots. Lobby GameState keeps humans only.
+var match_roster: Dictionary = {}
 var _sfx: Node
 
 ## Forwarded so existing checks can read the board's fire polygons.
@@ -203,14 +206,21 @@ func _default_stats() -> Dictionary:
 
 func _init_all_stats() -> void:
 	player_stats.clear()
-	for id in _roster().keys():
-		player_stats[id] = _default_stats()
+	for raw in MatchFill.seat_order(_participants()):
+		player_stats[int(raw)] = _default_stats()
 
 
 func _roster() -> Dictionary:
 	if room_code != "" and GameState.rooms.has(room_code):
 		return GameState.rooms[room_code].players
 	return GameState.players
+
+
+## Match fighters. Falls back to the human roster before the first setup RPC.
+func _participants() -> Dictionary:
+	if not match_roster.is_empty():
+		return match_roster
+	return _roster()
 
 
 func _room_map_id() -> int:
@@ -245,17 +255,21 @@ func _host_id() -> int:
 
 
 func _sorted_roster() -> Array:
-	var ids: Array = []
-	for k in _roster().keys():
-		ids.append(int(k))
-	ids.sort()
-	return ids
+	return MatchFill.seat_order(_participants())
 
 
 func _color_for(peer_id: int) -> Color:
-	var info: Dictionary = _roster().get(peer_id, {})
+	var info: Dictionary = _participants().get(peer_id, {})
 	var idx := int(info.get("color_idx", 0)) % GameState.PLAYER_COLORS.size()
 	return GameState.PLAYER_COLORS[idx]
+
+
+func _status_line(prefix: String) -> String:
+	var map_label := Arena.map_name(map_id)
+	var names := MatchFill.bot_names(_participants())
+	if names.is_empty():
+		return "%s · 地图：%s" % [prefix, map_label]
+	return "%s · %s · 地图：%s" % [prefix, "、".join(names), map_label]
 
 
 ## Authority-only. Runs locally and on peers who are in this room.
@@ -274,7 +288,9 @@ func _notify_room(method: StringName, args: Array = []) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) -> void:
-	GameState.install_roster(room_code, players_snap)
+	# Bots are match fighters only. install_roster keeps the lobby seat list human.
+	match_roster = MatchFill.fill(players_snap)
+	GameState.install_roster(room_code, MatchFill.humans(match_roster))
 	soft_seed = seed
 	map_id = Arena.clamp_map_id(p_map_id)
 	_publish_seed()
@@ -294,13 +310,11 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 	_init_all_stats()
 	_draw_map()
 	_spawn_all_players()
-	var map_label := Arena.map_name(map_id)
 	if not Net.is_authority():
-		_hud.set_status("对局进行中 · 地图：%s" % map_label)
+		_hud.set_status(_status_line("对局进行中"))
 	else:
-		var versus := " · 对手：电脑 · 地图：%s" if GameState.solo_bot and not Net.is_online() else "· 地图：%s"
-		_hud.set_status(("对局进行中（主机权威）" + versus) % map_label)
-	for id in _roster().keys():
+		_hud.set_status(_status_line("对局进行中（主机权威）"))
+	for id in _participants().keys():
 		alive[id] = true
 	_predict.clear_chain()
 	_clear_bomb_ghost()
@@ -322,6 +336,7 @@ func _spawn_all_players() -> void:
 			break
 		var cell: Vector2i = spawns[i]
 		var p := _make_player_visual(peer_id, cell)
+		p.set_meta("bot", MatchFill.is_bot_id(int(peer_id)))
 		entities.add_child(p)
 		player_nodes[peer_id] = p
 		alive[peer_id] = true
@@ -331,7 +346,7 @@ func _spawn_all_players() -> void:
 
 
 func _make_player_visual(peer_id: int, cell: Vector2i) -> Node2D:
-	var display := str(_roster().get(peer_id, {}).get("name", peer_id))
+	var display := str(_participants().get(peer_id, {}).get("name", peer_id))
 	return _board.make_player(peer_id, cell, _color_for(peer_id), display)
 
 
@@ -966,7 +981,7 @@ func _show_death(peer_id: int) -> void:
 func _check_winner() -> void:
 	if match_over:
 		return
-	var result: Dictionary = MatchEnd.outcome(alive, _roster())
+	var result: Dictionary = MatchEnd.outcome(alive, _participants())
 	if not bool(result.finished):
 		return
 	match_over = true
@@ -1046,7 +1061,7 @@ func _restart_match() -> void:
 		_notify_room("_rpc_setup_match", [soft_seed, snap, map_id])
 	else:
 		_rpc_setup_match(soft_seed, snap, map_id)
-	_hud.set_status("再来一局 · 地图：%s" % Arena.map_name(map_id))
+	_hud.set_status(_status_line("再来一局"))
 
 
 func _on_back() -> void:
@@ -1157,10 +1172,15 @@ func _clear_bomb_ghost() -> void:
 	_predict.clear_ghost()
 
 
+## Authority only. One deterministic pass per bot, in seat order, from the same tick view.
 func _tick_bot(_delta: float) -> void:
-	if Net.is_online() or match_over or not GameState.solo_bot:
+	if match_over:
 		return
-	var id := MatchBot.PEER_ID
+	for raw in MatchFill.bot_ids(_participants()):
+		_tick_one_bot(int(raw))
+
+
+func _tick_one_bot(id: int) -> void:
 	if not alive.get(id, false) or not player_nodes.has(id):
 		return
 	var st: Dictionary = player_stats.get(id, _default_stats())
@@ -1195,6 +1215,14 @@ func _bot_view(bot_id: int) -> Dictionary:
 	var lethal: Array[Vector2i] = []
 	for key in sudden.lethal.keys():
 		lethal.append(key)
+	var drops: Array[Vector2i] = []
+	for p in powerups.values():
+		drops.append(Vector2i(int(p.x), int(p.y)))
+	drops.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		if a.y == b.y:
+			return a.x < b.x
+		return a.y < b.y
+	)
 	return {
 		"grid": grid,
 		"cols": COLS,
@@ -1206,4 +1234,5 @@ func _bot_view(bot_id: int) -> Dictionary:
 		"bombs": bomb_list,
 		"others": others,
 		"lethal": lethal,
+		"powerups": drops,
 	}

@@ -31,7 +31,10 @@ func _run() -> void:
 		push_error("[verify_feel] FAIL: bomb not placed")
 		quit(1)
 		return
-	var bid: int = int(game.bombs.keys()[0])
+	var bid := -1
+	for k in game.bombs.keys():
+		if int(game.bombs[k].get("owner", -1)) == pid and int(k) > bid:
+			bid = int(k)
 	if bool(game.bombs[bid].get("solid", true)):
 		push_error("[verify_feel] FAIL: new bomb should be non-solid for owner")
 		quit(1)

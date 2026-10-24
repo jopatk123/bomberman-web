@@ -6,6 +6,8 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	if not _fill_rules():
+		return
 	if not _bot_rules():
 		return
 	if not _predict():
@@ -66,6 +68,17 @@ func _bot_rules() -> bool:
 	if int(around.action) != MatchBot.Action.MOVE or int(around.dx) != 1 or int(around.dy) != 0:
 		return _fail("bot did not walk toward soft, clear of fire: %s" % str(around))
 	print("[verify_bot] avoid danger OK")
+
+	var pickup := _empty(9, 9)
+	var grabbed := MatchBot.decide({
+		"grid": pickup, "cols": 9, "rows": 9, "cell": Vector2i(3, 3),
+		"blast_range": 2, "can_place": true,
+		"bombs": [], "others": [], "lethal": [],
+		"powerups": [Vector2i(3, 4)],
+	})
+	if int(grabbed.action) != MatchBot.Action.MOVE or int(grabbed.dx) != 0 or int(grabbed.dy) != 1:
+		return _fail("bot skipped an adjacent powerup: %s" % str(grabbed))
+	print("[verify_bot] powerup OK")
 	return true
 
 
@@ -89,13 +102,81 @@ func _predict() -> bool:
 	return true
 
 
+func _fill_rules() -> bool:
+	if MatchFill.bot_peer_id(1) != MatchBot.PEER_ID:
+		return _fail("first bot id drifted from MatchBot.PEER_ID")
+	var src := {
+		1: {"name": "甲", "color_idx": 0, "ready": true},
+	}
+	var filled := MatchFill.fill(src)
+	if src.size() != 1 or src.has(MatchBot.PEER_ID):
+		return _fail("fill mutated the lobby roster")
+	if not _expect_fill(filled, 1, "1 human"):
+		return false
+	var again := MatchFill.fill(filled)
+	if not _same_fighters(filled, again):
+		return _fail("fill was not idempotent: %s vs %s" % [str(filled), str(again)])
+	for n in [2, 3]:
+		var humans := {}
+		for i in n:
+			humans[10 + i] = {"name": "人%d" % i, "color_idx": i, "ready": true}
+		if not _expect_fill(MatchFill.fill(humans), n, "%d humans" % n):
+			return false
+	var four := {}
+	for i in 4:
+		four[i + 1] = {"name": "满%d" % i, "color_idx": i, "ready": true}
+	var full := MatchFill.fill(four)
+	if full.size() != 4 or not MatchFill.bot_ids(full).is_empty():
+		return _fail("4 humans were padded: %s" % str(full))
+	var seats: Array = MatchFill.seat_order(full)
+	if seats != [1, 2, 3, 4]:
+		return _fail("4 human seats reshuffled: %s" % str(seats))
+	print("[verify_bot] fill rules OK")
+	return true
+
+
+func _expect_fill(roster: Dictionary, human_count: int, label: String) -> bool:
+	if roster.size() != 4:
+		return _fail("%s size %d" % [label, roster.size()])
+	var bots: Array = MatchFill.bot_ids(roster)
+	if bots.size() != 4 - human_count:
+		return _fail("%s bots %s" % [label, str(bots)])
+	var humans := MatchFill.humans(roster)
+	if humans.size() != human_count:
+		return _fail("%s humans left %d" % [label, humans.size()])
+	for id in bots:
+		var entry: Dictionary = roster[id]
+		if not bool(entry.get("bot", false)) or not MatchFill.is_bot_id(int(id)):
+			return _fail("%s bot not marked: %s" % [label, str(entry)])
+		var nick := str(entry.get("name", ""))
+		if not nick.begins_with("人机"):
+			return _fail("%s name %s" % [label, nick])
+	if str(roster[bots[0]].name) != "人机1":
+		return _fail("%s first label %s" % [label, str(roster[bots[0]].name)])
+	return true
+
+
+func _same_fighters(a: Dictionary, b: Dictionary) -> bool:
+	if a.size() != b.size():
+		return false
+	for k in a.keys():
+		if not b.has(k):
+			return false
+		if str(a[k].get("name", "")) != str(b[k].get("name", "")):
+			return false
+		if int(a[k].get("color_idx", -1)) != int(b[k].get("color_idx", -2)):
+			return false
+		if bool(a[k].get("bot", false)) != bool(b[k].get("bot", false)):
+			return false
+	return true
+
+
 func _solo_scene() -> void:
 	var gs = root.get_node("GameState")
 	gs.reset_lobby()
 	gs.solo_bot = true
 	gs.players = {
 		1: {"name": "我", "color_idx": 0, "ready": true},
-		MatchBot.PEER_ID: {"name": MatchBot.NAME, "color_idx": 1, "ready": true},
 	}
 	gs.host_peer_id = 1
 	gs.in_match = true
@@ -103,18 +184,19 @@ func _solo_scene() -> void:
 	gs.soft_seed = 1
 	var game = load("res://scenes/game.tscn").instantiate()
 	root.add_child(game)
-	await process_frame
-	await process_frame
-	if not game.player_nodes.has(MatchBot.PEER_ID):
-		_fail("bot was not spawned")
+	# Spawn corners are assigned in _ready. Check them before _process lets bots walk.
+	if not _expect_scene(game, gs, 1):
 		return
-	if str(game.status_label.text).find("电脑") < 0:
+	await process_frame
+	await process_frame
+	if str(game.status_label.text).find("人机") < 0:
 		_fail("status: %s" % game.status_label.text)
 		return
 	var start: Vector2i = game.player_nodes[MatchBot.PEER_ID].get_meta("cell")
 	var human: Vector2i = game.player_nodes[1].get_meta("cell")
 	for _i in 6:
-		game.player_stats[MatchBot.PEER_ID].move_cd = 0.0
+		for raw in MatchFill.bot_ids(game.match_roster):
+			game.player_stats[int(raw)].move_cd = 0.0
 		game._tick_bot(0.0)
 	var after: Vector2i = game.player_nodes[MatchBot.PEER_ID].get_meta("cell")
 	if after == start and game.bombs.is_empty():
@@ -122,6 +204,14 @@ func _solo_scene() -> void:
 		return
 	if game.player_nodes[1].get_meta("cell") != human:
 		_fail("bot moved the human")
+		return
+	if not _expect_scene_counts(game, gs, 2):
+		return
+	if not _expect_scene_counts(game, gs, 3):
+		return
+	if not _expect_full_humans(game, gs):
+		return
+	if not _expect_rematch_refill(game, gs):
 		return
 	# Two ghosts in one frame: the second must not be renamed or leak.
 	game._show_bomb_ghost(human)
@@ -143,6 +233,92 @@ func _solo_scene() -> void:
 	print("[verify_bot] solo scene OK")
 	print("[verify_bot] SUCCESS")
 	quit(0)
+
+
+func _expect_scene(game, gs, human_count: int) -> bool:
+	if game.player_nodes.size() != 4 or game.match_roster.size() != 4:
+		return _fail("scene fighters nodes=%d roster=%d" % [game.player_nodes.size(), game.match_roster.size()])
+	if gs.players.size() != human_count:
+		return _fail("lobby roster grew to %d" % gs.players.size())
+	var spawns := Arena.spawn_cells()
+	var seats: Array = MatchFill.seat_order(game.match_roster)
+	if seats.size() != 4:
+		return _fail("seats %s" % str(seats))
+	for i in seats.size():
+		var id := int(seats[i])
+		if not game.player_nodes.has(id):
+			return _fail("missing fighter %d" % id)
+		var node: Node2D = game.player_nodes[id]
+		if node.get_meta("cell") != spawns[i]:
+			return _fail("spawn %d id %d cell %s" % [i, id, str(node.get_meta("cell"))])
+		var is_bot := MatchFill.is_bot_id(id)
+		if bool(node.get_meta("bot")) != is_bot:
+			return _fail("bot meta id %d" % id)
+		if is_bot and gs.players.has(id):
+			return _fail("bot seated in lobby %d" % id)
+		var shown := _pawn_label(node)
+		if shown != str(game.match_roster[id].get("name", "")):
+			return _fail("label %s != %s" % [shown, str(game.match_roster[id].name)])
+		if is_bot and not shown.begins_with("人机"):
+			return _fail("bot label %s" % shown)
+	print("[verify_bot] scene humans=%d OK" % human_count)
+	return true
+
+
+func _expect_scene_counts(game, gs, human_count: int) -> bool:
+	var humans := {}
+	for i in human_count:
+		humans[20 + i] = {"name": "测%d" % i, "color_idx": i, "ready": true}
+	gs.players = humans
+	game._restart_match()
+	return _expect_scene(game, gs, human_count)
+
+
+func _expect_full_humans(game, gs) -> bool:
+	var humans := {}
+	for i in 4:
+		humans[30 + i] = {"name": "满%d" % i, "color_idx": i, "ready": true}
+	gs.players = humans
+	game._restart_match()
+	if not MatchFill.bot_ids(game.match_roster).is_empty() or game.player_nodes.size() != 4:
+		return _fail("4 humans gained bots")
+	if gs.players.size() != 4:
+		return _fail("4 human lobby %d" % gs.players.size())
+	var spawns := Arena.spawn_cells()
+	var seats: Array = MatchFill.seat_order(game.match_roster)
+	for i in seats.size():
+		if game.player_nodes[int(seats[i])].get_meta("cell") != spawns[i]:
+			return _fail("full human spawn shifted")
+		if bool(game.player_nodes[int(seats[i])].get_meta("bot")):
+			return _fail("human marked bot")
+	print("[verify_bot] 4 humans unchanged OK")
+	return true
+
+
+func _expect_rematch_refill(game, gs) -> bool:
+	gs.players = {
+		41: {"name": "甲", "color_idx": 0, "ready": true},
+		44: {"name": "乙", "color_idx": 2, "ready": true},
+	}
+	game._restart_match()
+	if not _expect_scene(game, gs, 2):
+		return false
+	# A human leaves before the next round. Fill follows whoever is still seated.
+	gs.players.erase(44)
+	game._restart_match()
+	if not _expect_scene(game, gs, 1):
+		return false
+	if str(game.status_label.text).find("人机1") < 0:
+		return _fail("rematch status: %s" % game.status_label.text)
+	print("[verify_bot] rematch refill OK")
+	return true
+
+
+func _pawn_label(node: Node2D) -> String:
+	for child in node.get_children():
+		if child is Label:
+			return str(child.text)
+	return ""
 
 
 func _empty(cols: int, rows: int) -> Array:

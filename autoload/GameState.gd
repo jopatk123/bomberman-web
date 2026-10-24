@@ -43,7 +43,7 @@ var soft_seed: int = -1
 var seed_input: String = ""
 ## Shown once on the next lobby screen (disconnect, kick, leave). Survives reset_lobby().
 var pending_notice: String = ""
-## Offline solo spawns MatchBot. Never replicated; online matches leave this false.
+## Offline "单机试试". Bots themselves are created at match start by MatchFill, online or not.
 var solo_bot: bool = false
 ## code -> room dictionary. Authority keeps every room; a client only mirrors `room_code`.
 var rooms: Dictionary = {}

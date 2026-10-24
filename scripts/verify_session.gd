@@ -110,17 +110,22 @@ func _run() -> void:
 	print("[verify_session] setup clears stale alive OK")
 
 	game._forfeit_peer(2)
-	if not game.match_over:
-		_fail("last opponent leaving did not end the match")
-		return
-	if game.end_title.text.find("甲") < 0 or game.end_title.text.find("获胜") < 0:
-		_fail("winner text: %s" % game.end_title.text)
+	if game.match_over:
+		_fail("bots should keep the match going after the other human leaves")
 		return
 	if gs.players.has(2) or game.alive.get(2, false):
 		_fail("forfeited winner-path player remains")
 		return
 	if gs.players.size() != 1:
 		_fail("roster size %d" % gs.players.size())
+		return
+	for raw in MatchFill.bot_ids(game.match_roster):
+		game._kill_player(int(raw))
+	if not game.match_over:
+		_fail("last fighter standing did not end the match")
+		return
+	if game.end_title.text.find("甲") < 0 or game.end_title.text.find("获胜") < 0:
+		_fail("winner text: %s" % game.end_title.text)
 		return
 	print("[verify_session] forfeit win OK")
 

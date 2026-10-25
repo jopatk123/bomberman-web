@@ -40,6 +40,10 @@ const DIRECTORY_REFRESH_SEC := 5.0
 @onready var start_btn: Button = %StartBtn
 @onready var leave_btn: Button = %LeaveBtn
 
+const _STATUS_OK := Color(0.42, 0.9, 0.38, 1)
+const _STATUS_BAD := Color(0.95, 0.28, 0.24, 1)
+const _STATUS_IDLE := Color(0.74, 0.76, 0.7, 1)
+
 var _web := false
 var _updating_ui := false
 var _ui_lock := false
@@ -49,6 +53,71 @@ var _register_timer: Timer
 var _browsing := false
 var _selected_room_code := ""
 var _dir_timer: Timer
+var _centering := false
+
+
+func _set_login_status(message: String) -> void:
+	login_status.text = message
+	var bad := _message_is_error(message)
+	var color := _STATUS_IDLE
+	if bad:
+		color = _STATUS_BAD
+	elif message.find("已连接") >= 0 or message.find("已刷新") >= 0:
+		color = _STATUS_OK
+	login_status.add_theme_color_override("font_color", color)
+
+
+func _message_is_error(message: String) -> bool:
+	for piece in ["失败", "无效", "断开", "无法", "错误", "不正确", "没有", "已满", "请出", "拒绝", "稍后再", "对局中"]:
+		if message.find(piece) >= 0:
+			return true
+	return false
+
+
+func _center_panel() -> void:
+	if _centering:
+		return
+	var panel := get_node_or_null("Center/Panel") as Control
+	if panel == null:
+		return
+	var host := panel.get_parent() as Control
+	if host == null:
+		return
+	_centering = true
+	var min_size := panel.get_combined_minimum_size()
+	var w := int(ceil(min_size.x))
+	var h := int(ceil(min_size.y))
+	if w % 2 == 1:
+		w += 1
+	if h % 2 == 1:
+		h += 1
+	var x := int((int(host.size.x) - w) / 2)
+	var y := int((int(host.size.y) - h) / 2)
+	panel.position = Vector2(x, y)
+	panel.size = Vector2(w, h)
+	_centering = false
+
+
+func _play_panel_intro() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var panel := get_node_or_null("Center/Panel") as CanvasItem
+	if panel == null:
+		return
+	panel.modulate.a = 0.0
+	_step_panel_alpha(panel, 0)
+
+
+func _step_panel_alpha(panel: CanvasItem, step: int) -> void:
+	var alphas: Array[float] = [0.25, 0.5, 0.75, 1.0]
+	if step >= alphas.size() or not is_instance_valid(panel):
+		return
+	get_tree().create_timer(0.04).timeout.connect(func() -> void:
+		if not is_instance_valid(panel):
+			return
+		panel.modulate.a = alphas[step]
+		_step_panel_alpha(panel, step + 1)
+	)
 
 
 func _ready() -> void:
@@ -74,6 +143,13 @@ func _ready() -> void:
 	_setup_directory_timer()
 	_hide_seed_row()
 	_enter_initial_screen()
+	if not resized.is_connected(_center_panel):
+		resized.connect(_center_panel)
+	var panel := get_node_or_null("Center/Panel") as Control
+	if panel and not panel.minimum_size_changed.is_connected(_center_panel):
+		panel.minimum_size_changed.connect(_center_panel)
+	call_deferred("_center_panel")
+	_play_panel_intro()
 
 
 func _enter_initial_screen() -> void:
@@ -211,6 +287,7 @@ func _connect_net_signals() -> void:
 func _on_advanced_pressed() -> void:
 	advanced_box.visible = not advanced_box.visible
 	advanced_btn.text = "收起高级" if advanced_box.visible else "高级"
+	call_deferred("_center_panel")
 
 
 func _on_name_submitted(_text: String) -> void:
@@ -222,14 +299,14 @@ func _on_enter_pressed() -> void:
 	_commit_nickname()
 	if _browsing and Net.is_client and Net.is_online():
 		GameState.request_lobby_directory()
-		login_status.text = "已刷新房间列表"
+		_set_login_status("已刷新房间列表")
 		return
 	_set_login_busy(true)
-	login_status.text = "正在连接…"
+	_set_login_status("正在连接…")
 	var err := Net.join(address_edit.text.strip_edges())
 	if err != OK:
 		_set_login_busy(false)
-		login_status.text = "连接失败：%s" % error_string(err)
+		_set_login_status("连接失败：%s" % error_string(err))
 
 
 func _on_host_pressed() -> void:
@@ -237,11 +314,11 @@ func _on_host_pressed() -> void:
 	_commit_nickname()
 	var port := int(port_edit.text)
 	if port <= 0 or port > 65535:
-		login_status.text = "端口无效"
+		_set_login_status("端口无效")
 		return
 	var err := Net.host(port)
 	if err != OK:
-		login_status.text = "本机开房失败：%s" % error_string(err)
+		_set_login_status("本机开房失败：%s" % error_string(err))
 		return
 	_ui_lock = true
 	GameState.reset_lobby()
@@ -274,7 +351,7 @@ func _on_connected() -> void:
 	_pending_register = false
 	_stop_register_timer()
 	_set_login_busy(false)
-	login_status.text = "已连接，选择房间或新建"
+	_set_login_status("已连接，选择房间或新建")
 	_set_browse_chrome(true)
 	GameState.request_lobby_directory()
 
@@ -300,7 +377,7 @@ func _on_register_rejected(message: String) -> void:
 		_pending_register = false
 		_stop_register_timer()
 		_set_login_busy(false)
-		login_status.text = message if not message.is_empty() else "无法进入房间"
+		_set_login_status(message if not message.is_empty() else "无法进入房间")
 		return
 	_show_closed(message if not message.is_empty() else "无法进入房间")
 
@@ -460,7 +537,7 @@ func _set_browse_chrome(on: bool) -> void:
 	create_room_btn.disabled = not on
 	enter_btn.text = "刷新列表" if on else "连接服务器"
 	if on:
-		login_status.text = "已连接，选择房间或新建" if login_status.text.begins_with("正在") or login_status.text.is_empty() else login_status.text
+		_set_login_status("已连接，选择房间或新建" if login_status.text.begins_with("正在") or login_status.text.is_empty() else login_status.text)
 		if _dir_timer and _dir_timer.is_stopped():
 			_dir_timer.start()
 	elif _dir_timer:
@@ -478,6 +555,8 @@ func _refresh_room_list() -> void:
 		var empty := Label.new()
 		empty.text = "还没有房间，点下方新建"
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty.add_theme_font_size_override("font_size", 16)
+		empty.add_theme_color_override("font_color", Color(0.72, 0.74, 0.7, 1))
 		room_list.add_child(empty)
 		_selected_room_code = ""
 		return
@@ -490,10 +569,10 @@ func _refresh_room_list() -> void:
 		var locked := bool(entry.get("locked", false))
 		var who := str(entry.get("who", ""))
 		var state := "对局中" if in_match else "等待中"
-		var lock_mark := "🔒 " if locked else ""
+		var lock_mark := "锁 " if locked else ""
 		var btn := Button.new()
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0, 40)
+		btn.custom_minimum_size = Vector2(0, 32)
 		btn.text = "%s%s · %s %d/%d" % [lock_mark, code, state, count, cap]
 		if who != "":
 			btn.text += " · %s" % who
@@ -516,7 +595,7 @@ func _on_room_row_pressed(code: String) -> void:
 			locked = bool(raw.get("locked", false))
 			break
 	if locked and join_password_edit.text.strip_edges().is_empty():
-		login_status.text = "房间 %s 需要密码，填好后回车或再点一次" % code
+		_set_login_status("房间 %s 需要密码，填好后回车或再点一次" % code)
 		join_password_edit.grab_focus()
 		return
 	_join_selected_room()
@@ -527,7 +606,7 @@ func _on_join_password_submitted(_text: String) -> void:
 	if not _browsing:
 		return
 	if _selected_room_code.is_empty():
-		login_status.text = "先点选一个房间"
+		_set_login_status("先点选一个房间")
 		return
 	_on_room_row_pressed(_selected_room_code)
 
@@ -535,7 +614,7 @@ func _on_join_password_submitted(_text: String) -> void:
 func _on_create_room_pressed() -> void:
 	_commit_nickname()
 	if not _browsing or not Net.is_client or not Net.is_online():
-		login_status.text = "请先连接服务器"
+		_set_login_status("请先连接服务器")
 		return
 	_selected_room_code = ""
 	_start_register("", join_password_edit.text.strip_edges())
@@ -556,14 +635,14 @@ func _join_selected_room() -> void:
 			cap = int(raw.get("max", GameState.MAX_PLAYERS))
 			break
 	if in_match:
-		login_status.text = GameState.MSG_IN_MATCH
+		_set_login_status(GameState.MSG_IN_MATCH)
 		return
 	if count >= cap:
-		login_status.text = GameState.MSG_FULL
+		_set_login_status(GameState.MSG_FULL)
 		return
 	var pw := join_password_edit.text.strip_edges()
 	if locked and pw.is_empty():
-		login_status.text = "请先填写房间密码"
+		_set_login_status("请先填写房间密码")
 		return
 	_start_register(_selected_room_code, pw)
 
@@ -571,7 +650,7 @@ func _join_selected_room() -> void:
 func _start_register(code: String, password: String) -> void:
 	_pending_register = true
 	_set_login_busy(true)
-	login_status.text = "正在进入房间…"
+	_set_login_status("正在进入房间…")
 	_arm_register_timeout()
 	GameState._rpc_register_player.rpc_id(1, GameState.local_player_name, password, code)
 
@@ -586,7 +665,8 @@ func _show_login(message: String) -> void:
 	_set_login_busy(false)
 	_refresh_room_list()
 	if not message.is_empty():
-		login_status.text = message
+		_set_login_status(message)
+	call_deferred("_center_panel")
 
 
 func _show_room() -> void:
@@ -594,6 +674,7 @@ func _show_room() -> void:
 	room_box.visible = true
 	subtitle.visible = false
 	_refresh_room()
+	call_deferred("_center_panel")
 
 
 func _set_login_busy(busy: bool) -> void:

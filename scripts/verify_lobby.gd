@@ -280,6 +280,12 @@ func _check_sources() -> bool:
 	if scene_src.find("RoomListScroll") < 0 or state_src.find("_rpc_sync_lobby_directory") < 0:
 		push_error("[verify_lobby] FAIL: room list UI or directory RPC missing")
 		return false
+	if scene_src.find("NinePatchRect") < 0 or scene_src.find("PanelRoot") < 0:
+		push_error("[verify_lobby] FAIL: pixel panel NinePatch missing")
+		return false
+	if scene_src.find("corner_radius") >= 0:
+		push_error("[verify_lobby] FAIL: rounded corner style still in lobby")
+		return false
 	if lobby_src.find("将连接本站游戏服") < 0 or lobby_src.find("OS.has_feature(\"web\")") < 0:
 		push_error("[verify_lobby] FAIL: web host/address folding missing")
 		return false

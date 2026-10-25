@@ -18,5 +18,19 @@ func _init() -> void:
 		push_error("CJK string size too small: %s" % sz)
 		quit(3)
 		return
+	if font is FontFile:
+		var file := font as FontFile
+		if file.antialiasing != TextServer.FONT_ANTIALIASING_NONE:
+			push_error("CJK font antialiasing is not none")
+			quit(4)
+			return
+		if file.subpixel_positioning != TextServer.SUBPIXEL_POSITIONING_DISABLED:
+			push_error("CJK font subpixel positioning is enabled")
+			quit(5)
+			return
+		if file.hinting != TextServer.HINTING_NONE:
+			push_error("CJK font hinting is enabled")
+			quit(6)
+			return
 	print("CJK_FONT_OK size=", sz, " theme_font=", theme.default_font != null)
 	quit(0)

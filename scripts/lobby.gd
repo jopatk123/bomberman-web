@@ -47,6 +47,8 @@ const _NICK_NOUN: PackedStringArray = [
 @onready var ready_btn: Button = %ReadyBtn
 @onready var start_btn: Button = %StartBtn
 @onready var leave_btn: Button = %LeaveBtn
+@onready var music_toggle: CheckBox = %MusicToggle
+@onready var sfx_toggle: CheckBox = %SfxToggle
 
 const _STATUS_OK := Color(0.42, 0.9, 0.38, 1)
 const _STATUS_BAD := Color(0.95, 0.28, 0.24, 1)
@@ -158,6 +160,9 @@ func _ready() -> void:
 		panel.minimum_size_changed.connect(_center_panel)
 	call_deferred("_center_panel")
 	_play_panel_intro()
+	_bind_audio_toggles()
+	if not Net.is_dedicated():
+		Audio.request_music("lobby")
 
 
 func _enter_initial_screen() -> void:
@@ -233,7 +238,7 @@ func _auto_connect_if_needed() -> void:
 		return
 	if _browsing or Net.is_online() or room_box.visible:
 		return
-	_on_enter_pressed()
+	_begin_enter(false)
 
 
 func _setup_maps() -> void:
@@ -279,6 +284,7 @@ func _connect_controls() -> void:
 		room_password_edit.text_submitted.connect(_on_room_password_committed)
 	if not room_password_edit.focus_exited.is_connected(_on_room_password_focus_exited):
 		room_password_edit.focus_exited.connect(_on_room_password_focus_exited)
+	_bind_audio_toggles()
 
 
 func _connect_net_signals() -> void:
@@ -292,7 +298,42 @@ func _connect_net_signals() -> void:
 		Net.disconnected.connect(_on_disc)
 
 
+func _bind_audio_toggles() -> void:
+	if music_toggle == null or sfx_toggle == null:
+		return
+	music_toggle.set_pressed_no_signal(not Audio.music_muted)
+	sfx_toggle.set_pressed_no_signal(not Audio.sfx_muted)
+	if not music_toggle.toggled.is_connected(_on_music_toggled):
+		music_toggle.toggled.connect(_on_music_toggled)
+	if not sfx_toggle.toggled.is_connected(_on_sfx_toggled):
+		sfx_toggle.toggled.connect(_on_sfx_toggled)
+
+
+func _on_music_toggled(on: bool) -> void:
+	Audio.set_music_muted(not on)
+	if on:
+		Audio.unlock_from_gesture()
+	_ui_click()
+
+
+func _on_sfx_toggled(on: bool) -> void:
+	if on:
+		Audio.set_sfx_muted(false)
+		_ui_click()
+	else:
+		_ui_click()
+		Audio.set_sfx_muted(true)
+
+
+func _ui_click() -> void:
+	if Net.is_dedicated():
+		return
+	Audio.unlock_from_gesture()
+	Audio.play_sfx("ui_click")
+
+
 func _on_advanced_pressed() -> void:
+	_ui_click()
 	advanced_box.visible = not advanced_box.visible
 	advanced_btn.text = "收起高级" if advanced_box.visible else "高级"
 	call_deferred("_center_panel")
@@ -303,6 +344,12 @@ func _on_name_submitted(_text: String) -> void:
 
 
 func _on_enter_pressed() -> void:
+	_begin_enter(true)
+
+
+func _begin_enter(from_user: bool) -> void:
+	if from_user:
+		_ui_click()
 	_shown_close = false
 	_commit_nickname()
 	if _browsing and Net.is_client and Net.is_online():
@@ -318,6 +365,7 @@ func _on_enter_pressed() -> void:
 
 
 func _on_host_pressed() -> void:
+	_ui_click()
 	_shown_close = false
 	_commit_nickname()
 	var port := int(port_edit.text)
@@ -336,6 +384,8 @@ func _on_host_pressed() -> void:
 
 
 func _on_solo_pressed() -> void:
+	_ui_click()
+	Audio.request_music("match")
 	_commit_nickname()
 	Net.close()
 	_ui_lock = true
@@ -443,6 +493,9 @@ func _on_room_changed() -> void:
 
 
 func _on_ready_pressed() -> void:
+	if not Net.is_dedicated():
+		Audio.unlock_from_gesture()
+		Audio.play_sfx("ready")
 	var me := GameState.local_peer_id()
 	if not GameState.players.has(me):
 		return
@@ -451,6 +504,7 @@ func _on_ready_pressed() -> void:
 
 
 func _on_start_pressed() -> void:
+	_ui_click()
 	if not GameState.is_local_host():
 		return
 	_push_map_settings()
@@ -462,6 +516,7 @@ func _on_start_pressed() -> void:
 
 
 func _on_leave_pressed() -> void:
+	_ui_click()
 	_pending_register = false
 	_browsing = false
 	_selected_room_code = ""
@@ -519,6 +574,7 @@ func _on_match_starting() -> void:
 	if Net.is_dedicated():
 		_show_room()
 		return
+	Audio.request_music("match")
 	if Net.is_online() and not GameState.players.has(Net.get_peer_id()):
 		return
 	if Net.is_online():
@@ -593,6 +649,7 @@ func _refresh_room_list() -> void:
 
 
 func _on_room_row_pressed(code: String) -> void:
+	_ui_click()
 	if not _browsing or code.is_empty():
 		return
 	_selected_room_code = code
@@ -620,6 +677,7 @@ func _on_join_password_submitted(_text: String) -> void:
 
 
 func _on_create_room_pressed() -> void:
+	_ui_click()
 	_commit_nickname()
 	if not _browsing or not Net.is_client or not Net.is_online():
 		_set_login_status("请先连接服务器")
@@ -678,11 +736,14 @@ func _show_login(message: String) -> void:
 
 
 func _show_room() -> void:
+	var entered := not room_box.visible and _local_in_room() and not Net.is_dedicated()
 	login_box.visible = false
 	room_box.visible = true
 	subtitle.visible = false
 	_refresh_room()
 	call_deferred("_center_panel")
+	if entered:
+		Audio.play_sfx("enter_room")
 
 
 func _set_login_busy(busy: bool) -> void:
@@ -791,6 +852,7 @@ func _rebuild_players() -> void:
 
 
 func _on_kick_pressed(peer_id: int) -> void:
+	_ui_click()
 	GameState.request_kick(peer_id)
 
 

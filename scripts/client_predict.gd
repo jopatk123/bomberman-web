@@ -1,7 +1,7 @@
 class_name ClientPredict
 extends RefCounted
-## Local pawn chain and the bomb ghost shown before the host confirms.
-## MovePredict owns the ack rules. This type only stores the chain and the ghost node.
+## 本地角色的预演链，以及主机确认前先画出来的影子炸弹。
+## 确认规则在 MovePredict。这里只存这条链和影子节点。
 
 
 var cells: Array = []
@@ -23,14 +23,14 @@ func tip(fallback: Vector2i) -> Vector2i:
 	return fallback
 
 
-## Returns the cell the pawn should draw after this host ack.
+## 这次主机确认之后，角色该画在哪一格。
 func ack_cell(cell: Vector2i) -> Vector2i:
 	var reconciled: Dictionary = MovePredict.ack(cells, cell)
 	cells = reconciled.chain
 	return reconciled.show
 
 
-## Appends one predicted step when `can_step` accepts the destination.
+## `can_step` 接受目标格时，追加一步预演。
 func push_step(dir: Vector2i, origin: Vector2i, can_step: Callable) -> bool:
 	if cells.is_empty():
 		cells = [origin]
@@ -60,7 +60,7 @@ func show_ghost(host: Node, entities: Node2D, cell: Vector2i, tile: int) -> void
 func clear_ghost() -> void:
 	ghost_gen += 1
 	if is_instance_valid(ghost):
-		# Detach now so the next ghost keeps the "BombGhost" name this frame.
+		# 这一帧先摘下来，下一颗影子才能继续叫 BombGhost。
 		if ghost.get_parent():
 			ghost.get_parent().remove_child(ghost)
 		ghost.queue_free()

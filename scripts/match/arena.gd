@@ -1,7 +1,7 @@
 class_name Arena
 extends RefCounted
-## Classic 13×11 arena layouts: hard border, four corner spawns, soft walls by seed.
-## Pure data — no nodes. Cell values match BlastRules / game_root Cell enum.
+## 经典 13×11 场地：硬墙围边、四角出生点，软墙按种子铺。
+## 纯数据，没有节点。格子取值与 BlastRules / game_root 的 Cell 枚举一致。
 
 const COLS := 13
 const ROWS := 11
@@ -10,8 +10,8 @@ const CELL_HARD := 1
 const CELL_SOFT := 2
 const SOFT_CHANCE := 0.55
 
-## Lobby-only: pick a concrete layout when the match starts.
-const MAP_RANDOM := 4  # OptionButton treats -1 as "use index"; keep out of layout clamp range
+## 只给大厅用：开局时再落到一张具体地图。
+const MAP_RANDOM := 4  # OptionButton 把 -1 当成「用下标」；随机值必须落在布局钳制范围之外
 
 enum MapId { CLASSIC = 0, OPEN = 1, CROSS = 2, MAZE = 3 }
 
@@ -24,14 +24,14 @@ static func is_random_map(id: int) -> bool:
 	return int(id) == MAP_RANDOM
 
 
-## Allowed lobby preference: RANDOM or a concrete MapId.
+## 大厅允许的偏好：随机，或一张具体地图。
 static func lobby_map_id(id: int) -> int:
 	if is_random_map(id):
 		return MAP_RANDOM
 	return clamp_map_id(id)
 
 
-## Concrete layout for the current match (rolls when preference is RANDOM).
+## 本局实际布局。偏好是随机时在这里抽一张。
 static func resolve_map_id(id: int) -> int:
 	if is_random_map(id):
 		return randi_range(int(MapId.CLASSIC), int(MapId.MAZE))
@@ -70,7 +70,7 @@ static func map_desc(id: int) -> String:
 			return ""
 
 
-## Alias for CLASSIC hard layout (compat with older callers).
+## 经典硬墙布局的别名，给旧调用方留着。
 static func empty_grid() -> Array:
 	return build_base_grid(MapId.CLASSIC)
 
@@ -102,7 +102,7 @@ static func spawn_cells() -> Array[Vector2i]:
 	]
 
 
-## Spawn cells and orthogonal neighbors — never HARD, never soft-blocked.
+## 出生格及其上下左右邻格：不能是硬墙，也不能被软墙堵住。
 static func spawn_clear_cells() -> Dictionary:
 	var keep_clear: Dictionary = {}
 	for s in spawn_cells():
@@ -115,7 +115,7 @@ static func spawn_clear_cells() -> Dictionary:
 	return keep_clear
 
 
-## Spawn cells and their orthogonal neighbors stay empty so players can leave.
+## 出生格和正交邻格保持空着，玩家才能走出来。
 static func place_soft_walls(grid: Array, seed: int, soft_chance: float = SOFT_CHANCE) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
@@ -167,8 +167,8 @@ static func _classic_grid() -> Array:
 	return grid
 
 
-## Classic pillars + center cross (middle row & col).
-## 3-cell corridor gaps keep the four corners mutually reachable.
+## 经典柱阵，再加上正中一行一列的十字硬墙。
+## 每边留出 3 格走廊，四角仍然互相走得到。
 static func _cross_grid() -> Array:
 	var grid := _classic_grid()
 	var keep_clear := spawn_clear_cells()
@@ -197,11 +197,11 @@ static func _cross_grid() -> Array:
 	return grid
 
 
-## Classic pillars plus extra corridor plugs; openings keep corners linked.
+## 经典柱阵再堵几段走廊；留下的开口仍把四角连在一起。
 static func _maze_grid() -> Array:
 	var grid := _classic_grid()
 	var keep_clear := spawn_clear_cells()
-	# Extra hard plugs between pillars (leave y=2/5/8 and x=6 lanes open).
+	# 柱子之间额外堵上硬墙（y=2/5/8 和 x=6 的通道留空）。
 	var extra: Array[Vector2i] = [
 		Vector2i(3, 3), Vector2i(3, 4), Vector2i(3, 6), Vector2i(3, 7),
 		Vector2i(9, 3), Vector2i(9, 4), Vector2i(9, 6), Vector2i(9, 7),

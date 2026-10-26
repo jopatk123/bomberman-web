@@ -1,6 +1,6 @@
 extends Node2D
-## Visual + cell meta for a bomber. Simulation lives on the authority (game_root.gd).
-## meta: cell (Vector2i), peer_id (int)
+## 角色外观，以及所在格的 meta。模拟在权威端（game_root.gd）。
+## 节点 meta：格子 cell（Vector2i）、编号 peer_id（int）
 
 const TEX_PLAYERS: Array[Texture2D] = [
 	preload("res://assets/art/pixel/entities/player_blue.png"),

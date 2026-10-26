@@ -1,13 +1,13 @@
 class_name MatchBot
 extends RefCounted
-## One fighter's decision for a single tick. Flee blasts, grab a nearby powerup,
-## bomb soft walls or another fighter when an escape exists, otherwise walk.
-## The authority applies this for every MatchFill bot. No RPC here.
+## 一个角色在这一拍怎么走。先躲爆炸，旁边有道具就捡；
+## 有退路才炸软墙或另一个人，否则就走路。
+## 权威端对每个 MatchFill 人机调用一次。这里不发 RPC。
 
-## First filled slot. MatchFill.bot_peer_id(1) is the source of truth.
+## 第一个补位槽。真实编号以 MatchFill.bot_peer_id(1) 为准。
 const PEER_ID := -1001
 const NAME := "人机1"
-## Bombs still on a normal fuse count as danger. Long debug timers do not.
+## 还在正常引信上的炸弹算危险。调试用的超长计时不算。
 const DANGER_TIME := 2.05
 
 enum Action { WAIT = 0, MOVE = 1, BOMB = 2 }
@@ -20,10 +20,10 @@ const _DIRS: Array[Vector2i] = [
 ]
 
 
-## view: grid, cols, rows, cell, blast_range, can_place, bombs[], others[], lethal[], powerups[]
-## bombs[]: {x, y, timer, range, pierce}
-## powerups[]: Vector2i cells. Decisions are a pure function of this view.
-## Returns {action, dx, dy}.
+## 视野 view 包含：grid、cols、rows、cell、blast_range、can_place、bombs[]、others[]、lethal[]、powerups[]
+## 炸弹列表 bombs[] 的每一项是 {x, y, timer, range, pierce}
+## powerups[]：Vector2i 格子。决策只看这份视图，不读外部状态。
+## 返回 {action, dx, dy}。
 static func decide(view: Dictionary) -> Dictionary:
 	var cell: Vector2i = view.cell
 	var danger := _danger(view)
@@ -109,7 +109,7 @@ static func _worth_placing(view: Dictionary, cell: Vector2i, danger: Dictionary,
 				break
 	if not useful:
 		return false
-	# Range ≥ 1 always burns the four neighbors. Escape is step out, then aside.
+	# 射程至少 1 时，四个邻格一定会被烧到。先迈出去，再侧到安全格。
 	for d in _DIRS:
 		var n: Vector2i = cell + d
 		if not _standable(view, n) or blocked.has(n):
@@ -164,8 +164,8 @@ static func _standable(view: Dictionary, cell: Vector2i) -> bool:
 	return int(view.grid[cell.y][cell.x]) == CELL_EMPTY
 
 
-## BFS. allow_danger is for fleeing through a blast to the first safe cell.
-## Returns the first step, or ZERO when nothing matches.
+## 广度优先搜索。allow_danger 用来穿过火区，找到第一格安全地。
+## 返回第一步；没有符合的格子时返回 ZERO。
 static func _bfs(
 	view: Dictionary,
 	origin: Vector2i,

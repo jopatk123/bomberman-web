@@ -1,5 +1,5 @@
 extends SceneTree
-## Headless: blast / soft-break textures load; play_boom spawns Sprite2D FX.
+## 无界面：爆炸和软墙碎裂贴图能载入；play_boom 会生成 Sprite2D 特效。
 
 
 func _initialize() -> void:
@@ -14,7 +14,7 @@ func _run() -> void:
 		var path := "res://assets/art/pixel/fx/%s" % n
 		var tex: Texture2D = load(path)
 		if tex == null or tex.get_width() != 48 or tex.get_height() != 48:
-			push_error("[verify_fx] FAIL: %s" % path)
+			push_error("[verify_fx] 失败：%s" % path)
 			quit(1)
 			return
 
@@ -26,7 +26,7 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
-	# Place a soft wall next to player and explode a bomb into it.
+	# 在玩家旁边放一块软墙，再把炸弹炸过去。
 	var pid := 1
 	var cell: Vector2i = game.player_nodes[pid].get_meta("cell")
 	var soft := cell + Vector2i(1, 0)
@@ -34,10 +34,10 @@ func _run() -> void:
 		soft = cell + Vector2i(-1, 0)
 	game.grid[soft.y][soft.x] = game.Cell.SOFT
 	game.player_stats[pid].move_cd = 0.0
-	# Move player away so bomb can sit on start cell? Place bomb on player cell then move.
+	# 先把炸弹放在玩家脚下，再把人走开，炸弹才能留在起始格。
 	game._try_place_bomb(pid)
 	if game.bombs.is_empty():
-		push_error("[verify_fx] FAIL: no bomb")
+		push_error("[verify_fx] 失败：没有炸弹")
 		quit(1)
 		return
 	var bid := -1
@@ -45,14 +45,14 @@ func _run() -> void:
 		if int(game.bombs[k].get("owner", -1)) == pid and int(k) > bid:
 			bid = int(k)
 	if bid < 0:
-		push_error("[verify_fx] FAIL: human bomb missing")
+		push_error("[verify_fx] 失败：真人的炸弹不见了")
 		quit(1)
 		return
-	# Force explode with soft in ray: set bomb next to soft
+	# 强制爆炸时让软墙落在射线上：把炸弹放到软墙旁边。
 	game.bombs[bid].x = soft.x - 1 if soft.x > cell.x else soft.x + 1
 	game.bombs[bid].y = soft.y
 	game.bombs[bid].timer = 0.0
-	# Ensure bomb cell empty and soft still soft
+	# 炸弹那一格必须是空的，软墙还得是软墙。
 	var bx: int = int(game.bombs[bid].x)
 	var by: int = int(game.bombs[bid].y)
 	game.grid[by][bx] = game.Cell.EMPTY
@@ -67,9 +67,9 @@ func _run() -> void:
 		if c is Sprite2D:
 			sprites += 1
 	if sprites < 1:
-		push_error("[verify_fx] FAIL: no FX sprites after boom")
+		push_error("[verify_fx] 失败：爆炸后没有特效精灵")
 		quit(1)
 		return
 
-	print("[verify_fx] OK sprites=%d" % sprites)
+	print("[verify_fx] 通过 精灵=%d" % sprites)
 	quit(0)

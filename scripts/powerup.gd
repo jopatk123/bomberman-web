@@ -1,5 +1,5 @@
 extends Node2D
-## Visual pickup. Simulation / ownership lives on authority (game_root.gd).
+## 道具外观。拾取判定和归属在权威端（game_root.gd）。
 
 enum Kind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3, PIERCE = 4 }
 

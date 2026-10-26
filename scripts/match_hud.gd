@@ -1,6 +1,6 @@
 class_name MatchHud
 extends RefCounted
-## Match labels and the end panel. It displays decisions made elsewhere.
+## 对局文字和结算面板。只显示别处已经做出的决定。
 
 
 const HELP := "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹 / 黄P穿透"

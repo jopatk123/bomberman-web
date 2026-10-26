@@ -1,6 +1,6 @@
 class_name RoomCodes
 extends RefCounted
-## Short room codes. No RPC and no scene access.
+## 短房间码。不发 RPC，也不碰场景。
 
 
 const ALPHABET := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -21,8 +21,8 @@ static func fresh(code: String, password: String) -> Dictionary:
 	}
 
 
-## Empty when the text is not exactly 4 unambiguous characters (extra junk is ignored
-## until 4 valid characters have been collected).
+## 凑不满 4 个不含歧义的字符时返回空串（多余的杂字先忽略，
+## 直到收齐 4 个合法字符）。
 static func normalize(raw: String) -> String:
 	var up := raw.strip_edges().to_upper()
 	var out := ""

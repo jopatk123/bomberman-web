@@ -1,6 +1,6 @@
 extends Node
-## One match node per room code, at /root/MatchHost/<code> on every peer.
-## Offline solo still changes the current scene to game.tscn and does not come through here.
+## 每个房间码一个对局节点，各端都在 /root/MatchHost/<房间码>。
+## 离线单机仍直接切到 game.tscn，不走这里。
 
 const GAME_SCENE := "res://scenes/game.tscn"
 

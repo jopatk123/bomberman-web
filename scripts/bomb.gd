@@ -1,5 +1,5 @@
 extends Node2D
-## Bomb visual. Fuse / blast / kick slide simulated on authority (game_root.gd).
+## 炸弹外观。引信、爆炸、踢弹滑行都在权威端算（game_root.gd）。
 
 const TEX_BOMB: Texture2D = preload("res://assets/art/pixel/entities/bomb.png")
 
@@ -33,5 +33,5 @@ func _process(delta: float) -> void:
 	scale = Vector2(pulse, pulse)
 	if _body:
 		var t := clampf(_age / 2.0, 0.0, 1.0)
-		# Warm tint as fuse burns down; sprite already has the spark.
+		# 引信烧完前略偏暖色；火花已经画在贴图上。
 		_body.modulate = Color(1.0 + t * 0.35, 1.0 - t * 0.15, 1.0 - t * 0.25, 1.0)

@@ -1,17 +1,17 @@
 extends Node2D
-## Match conductor: input → match rules → RPC → MatchBoard / MatchHud.
-## Grid rules live in scripts/match/. This script owns the running dictionaries
-## and is the only place in a match that sends @rpc.
+## 对局编排：输入 → 对局规则 → RPC → MatchBoard / MatchHud。
+## 格子规则在 scripts/match/。本脚本持有运行时字典，
+## 也是对局里唯一发送 @rpc 的地方。
 ##
-## PlayerStats — caps, pickup, stat packs.
-## BombRecord — bomb dictionary shape.
-## PowerupDrop — soft-wall drops.
-## MatchEnd — win, draw, rematch, forfeit decisions.
-## MatchSession — leave, kick, disconnect, forfeit apply, empty dedicated room.
-## BlastRules / SuddenDeath / KickRules / Arena / MatchBot / MatchFill / MovePredict — as before.
-## MatchFill adds bots at setup time. The authority ticks them; clients only render.
-## MatchBoard paints tiles and entities. MatchHud paints labels.
-## ClientPredict stores the local move chain and bomb ghost.
+## PlayerStats — 上限、拾取、属性包。
+## BombRecord — 炸弹字典的字段形状。
+## PowerupDrop — 软墙掉落。
+## MatchEnd — 胜负、平局、再来一局、弃权判定。
+## MatchSession — 离开、被踢、断线、弃权落地、专用服空房。
+## BlastRules / SuddenDeath / KickRules / Arena / MatchBot / MatchFill / MovePredict — 职责同架构说明。
+## MatchFill 在开局时补人机。权威端逐个推进；客机只画。
+## MatchBoard 画地块和实体。MatchHud 画文字。
+## ClientPredict 存本地移动链和影子炸弹。
 
 const TILE := 48
 const COLS := 13
@@ -43,44 +43,44 @@ enum PKind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3, PIERCE = 4 }
 @onready var rematch_btn: Button = $HUD/EndPanel/VBox/RematchBtn
 @onready var lobby_btn: Button = $HUD/EndPanel/VBox/LobbyBtn
 
-## grid[y][x] -> Cell
+## grid[y][x] 存的是格子 Cell
 var grid: Array = []
 var soft_seed: int = 0
 var map_id: int = 0
-## peer_id -> player node
+## peer_id → 玩家节点
 var player_nodes: Dictionary = {}
-## bomb_id -> BombRecord
+## bomb_id 对应炸弹记录 BombRecord
 var bombs: Dictionary = {}
 var next_bomb_id: int = 1
-## powerup_id -> {x,y,kind}
+## powerup_id 对应 {x, y, kind}
 var powerups: Dictionary = {}
 var next_powerup_id: int = 1
-## peer_id -> PlayerStats
+## peer_id 对应属性 PlayerStats
 var player_stats: Dictionary = {}
-var alive: Dictionary = {} # peer_id -> bool
+var alive: Dictionary = {} # peer_id → 是否存活
 var match_over: bool = false
-## Client-side input cooldown; server also tracks per-player move_cd
+## 客户端输入冷却；服务器也按人记 move_cd。
 var _local_move_cd: float = 0.0
 var sudden: SuddenDeath = SuddenDeath.new()
-## Cells hit by blasts during the current move, so stepping into that flame kills.
+## 这一步里被爆炸扫到的格子。踩进去就会死。
 var _blast_hits: Array[Vector2i] = []
-## Seconds until the next authority clock sync during the countdown window.
+## 倒计时窗口里，距下次权威时钟同步还有多少秒。
 var _clock_sync_wait: float = 0.0
 var _board := MatchBoard.new()
 var _hud := MatchHud.new()
 var _predict := ClientPredict.new()
 var _session := MatchSession.new()
-## Set from MatchHost before this node enters the tree. Empty for offline solo.
+## 进场景树之前由 MatchHost 写入。离线单机为空。
 var room_code: String = ""
-## Fighters for this round, including bots. Lobby GameState keeps humans only.
+## 本局角色，含人机。大厅的 GameState 只留真人。
 var match_roster: Dictionary = {}
 
-## Forwarded so existing checks can read the board's fire polygons.
+## 转发出去，旧校验还能读到棋盘上的火焰节点。
 var _sd_visuals: Dictionary:
 	get:
 		return _board.sd_visuals
 
-## Forwarded so existing checks can read the ghost the predictor is showing.
+## 转发出去，旧校验还能读到预演正在显示的影子。
 var _ghost_node: Node2D:
 	get:
 		return _predict.ghost
@@ -139,7 +139,7 @@ func _process(delta: float) -> void:
 			_sync_match_clock(delta)
 			_tick_bot(delta)
 	elif not match_over:
-		# HUD clock only. Lethal cells arrive from the host.
+		# 只推界面时钟。致死格由主机发来。
 		sudden.advance_elapsed(delta)
 		sudden.advance_pulse_display(delta)
 	if not match_over:
@@ -214,7 +214,7 @@ func _roster() -> Dictionary:
 	return GameState.players
 
 
-## Match fighters. Falls back to the human roster before the first setup RPC.
+## 本局角色。第一次开局 RPC 之前，退回真人名单。
 func _participants() -> Dictionary:
 	if not match_roster.is_empty():
 		return match_roster
@@ -234,7 +234,7 @@ func _resolve_seed() -> int:
 
 
 func _publish_seed() -> void:
-	# Keep lobby RANDOM preference so rematch can roll a new layout.
+	# 大厅的「随机」偏好留着，再来一局才能重抽布局。
 	var preferred := _room_map_id()
 	if room_code != "" and GameState.rooms.has(room_code):
 		if not Arena.is_random_map(preferred):
@@ -270,7 +270,7 @@ func _status_line(prefix: String) -> String:
 	return "%s · %s · 地图：%s" % [prefix, "、".join(names), map_label]
 
 
-## Authority-only. Runs locally and on peers who are in this room.
+## 仅权威端调用。本机先跑，再发给这间房里的其他人。
 func _notify_room(method: StringName, args: Array = []) -> void:
 	if not Net.is_online():
 		callv(method, args)
@@ -286,7 +286,7 @@ func _notify_room(method: StringName, args: Array = []) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) -> void:
-	# Bots are match fighters only. install_roster keeps the lobby seat list human.
+	# 人机只算对局角色。install_roster 让大厅座位仍只有真人。
 	match_roster = MatchFill.fill(players_snap)
 	GameState.install_roster(room_code, MatchFill.humans(match_roster))
 	soft_seed = seed
@@ -376,12 +376,12 @@ func _rpc_request_move(dx: int, dy: int) -> void:
 	if had:
 		before = player_nodes[sender].get_meta("cell")
 	_apply_move(sender, step.x, step.y)
-	# Rejected steps still echo the host cell so a predicted pawn snaps back.
+	# 被拒绝的步也回传主机那一格，预演中的角色才能拉回去。
 	if had and player_nodes.has(sender) and player_nodes[sender].get_meta("cell") == before:
 		_notify_room("_rpc_set_player_cell", [sender, before.x, before.y])
 
 
-## One orthogonal tile. Anything else (including diagonals and teleports) is ignored.
+## 只接受上下左右一格。斜向、瞬移以及其他步长都忽略。
 func _unit_step(dx: int, dy: int) -> Vector2i:
 	if absi(dx) + absi(dy) != 1:
 		return Vector2i.ZERO
@@ -407,7 +407,7 @@ func _apply_move(peer_id: int, dx: int, dy: int) -> void:
 	var next := cell + Vector2i(dx, dy)
 	if not _walkable(next):
 		return
-	# Sudden-death fire: walking onto lethal kills after move resolves
+	# 突然死亡的火：走完这一步若落在致死格上就会死。
 	var bid := _bomb_id_at(next)
 	if bid >= 0:
 		var has_kick := int(st.get("kick", 0)) > 0
@@ -429,7 +429,7 @@ func _apply_move(peer_id: int, dx: int, dy: int) -> void:
 	var prev := cell
 	cell = next
 	node.set_meta("cell", cell)
-	# After owner leaves bomb cell → bomb becomes solid for everyone
+	# 放弹者离开那一格后，炸弹对所有人变成实体。
 	_solidify_bombs_left_by(peer_id, prev)
 	if Net.is_online():
 		_notify_room("_rpc_set_player_cell", [peer_id, cell.x, cell.y])
@@ -454,8 +454,8 @@ func _bomb_id_at(cell: Vector2i) -> int:
 	return KickRules.bomb_id_at(bombs, cell)
 
 
-## Kick: slide bomb one step immediately; keep sliding each tick until blocked.
-## Soft / hard / bomb / player / powerup / edge → stop (soft NOT destroyed by kick).
+## 踢弹：立刻滑一格，之后每拍继续滑，直到被挡住。
+## 软墙 / 硬墙 / 炸弹 / 玩家 / 道具 / 边缘都会停下（踢弹不炸软墙）。
 func _try_kick_bomb(bid: int, dx: int, dy: int) -> bool:
 	if not bombs.has(bid):
 		return false
@@ -469,7 +469,7 @@ func _try_kick_bomb(bid: int, dx: int, dy: int) -> bool:
 		_notify_room("_rpc_fx", ["kick"])
 	else:
 		Audio.play_sfx("kick")
-	# Entering existing fire detonates immediately and removes the bomb.
+	# 进入已有火焰会立刻引爆，并把这颗炸弹去掉。
 	if not bombs.has(bid):
 		return true
 	bd = bombs[bid]
@@ -544,7 +544,7 @@ func _tick_bomb_slides(delta: float) -> void:
 		bombs[bid] = bd
 		_move_bomb_to(bid, dest)
 		if not bombs.has(bid):
-			# Detonation can remove players, powerups, and other bombs.
+			# 引爆可能清掉玩家、道具和其他炸弹。
 			blockers = _slide_blockers()
 
 
@@ -608,11 +608,11 @@ func _try_place_bomb(peer_id: int) -> void:
 		if int(b.x) == cell.x and int(b.y) == cell.y:
 			return
 	var blast: int = clampi(int(st.get("range", BASE_BLAST)), 1, MAX_RANGE)
-	# Snapshot pierce at place time. A later pickup must not change this bomb.
+	# 放下这一刻记下穿透。之后再捡，不改变这颗已经放下去的炸弹。
 	var pierce: int = 1 if int(st.get("pierce", 0)) > 0 else 0
 	var bid := next_bomb_id
 	next_bomb_id += 1
-	# solid=false → owner may walk off; becomes solid once they leave
+	# solid=false：放弹者可以走开；离开后才变成实体。
 	bombs[bid] = BombRecord.make(cell.x, cell.y, peer_id, blast, pierce)
 	if Net.is_online():
 		_notify_room("_rpc_spawn_bomb", [bid, cell.x, cell.y, peer_id, blast, pierce])
@@ -672,7 +672,7 @@ func _explode(bid: int) -> void:
 		var drop: Dictionary = PowerupDrop.roll(cleared_soft, powerups, sudden.lethal, rng, next_powerup_id)
 		spawned = drop.spawned
 		next_powerup_id = int(drop.next_id)
-	# Chain reaction when blast hits another bomb
+	# 爆炸打到另一颗炸弹时连环引爆。
 	var chained: Array = []
 	for other_id in bombs.keys():
 		var oc := Vector2i(int(bombs[other_id].x), int(bombs[other_id].y))
@@ -689,7 +689,7 @@ func _explode(bid: int) -> void:
 			_spawn_powerup_visual(int(s.id), Vector2i(int(s.x), int(s.y)), int(s.kind))
 		_refresh_stats_hud()
 	_kill_players_in(hit_cells)
-	# Destroy powerups in blast (except freshly spawned from this explosion)
+	# 清掉爆炸范围内的道具（本轮刚从软墙掉出来的除外）。
 	_destroy_powerups_in(hit_cells, spawned)
 	for cid in chained:
 		_explode(cid)
@@ -847,8 +847,8 @@ func _tick_sudden_death(delta: float) -> void:
 		_apply_sudden_ring(new_cells, bomb_ids, powerup_ids)
 
 
-## One path for host and clients: clear soft walls, swallow bombs and powerups, paint fire.
-## The shrink ring consumes bombs; it does not detonate them.
+## 主机和客机同一条路：清软墙、吞炸弹和道具、画火。
+## 缩圈把炸弹吃掉，不引爆。
 func _apply_sudden_ring(cells: Array, bomb_ids: PackedInt32Array, powerup_ids: PackedInt32Array) -> void:
 	var cleared: Array[Vector2i] = []
 	for c in cells:
@@ -1055,7 +1055,7 @@ func _restart_match() -> void:
 		return
 	if Net.is_online() and roster.size() < 2:
 		return
-	# RANDOM preference re-rolls layout; fixed map stays. Soft seed always new.
+	# 「随机」偏好会重抽布局；固定地图保持。软墙种子每次都新。
 	map_id = Arena.resolve_map_id(_room_map_id())
 	soft_seed = randi() & 0x7fffffff
 	_publish_seed()
@@ -1124,8 +1124,8 @@ func _on_match_peer_out(id: int) -> void:
 	_session.on_peer_out(id, _forfeit_peer)
 
 
-## Drop a peer who left mid-match. Kill them before erasing the roster entry so a
-## 2-player game still counts as a win, not as the solo "don't end" case.
+## 中途离开的人从这局拿掉。先判死再从名单擦掉，
+## 这样两人局里剩下的人算赢，而不会变成「只剩一人就不结束」。
 func _forfeit_peer(id: int) -> void:
 	_session.forfeit_peer(
 		get_tree(), id, alive, match_over, _kill_player, _refresh_rematch_button,
@@ -1177,7 +1177,7 @@ func _predict_step(dir: Vector2i) -> void:
 	player_nodes[my_id].position = _cell_to_pos(_predict.tip(origin))
 
 
-## Empty tiles only. Kicks and other bombs wait for the host, then snap.
+## 只预演空地。踢弹和其他炸弹等主机推完再对齐。
 func _can_predict_step(dst: Vector2i) -> bool:
 	if not _walkable(dst) or sudden.is_lethal(dst) or _bomb_id_at(dst) >= 0:
 		return false
@@ -1211,7 +1211,7 @@ func _clear_bomb_ghost() -> void:
 	_predict.clear_ghost()
 
 
-## Authority only. One deterministic pass per bot, in seat order, from the same tick view.
+## 仅权威端。按座位顺序，用同一拍的视图，给人机各算一步。
 func _tick_bot(_delta: float) -> void:
 	if match_over:
 		return

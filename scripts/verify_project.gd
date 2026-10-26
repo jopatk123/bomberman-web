@@ -1,5 +1,5 @@
 extends SceneTree
-## Headless smoke: confirm autoloads + scripts load, then quit.
+## 无界面冒烟：确认自动加载和脚本能载入，然后退出。
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -7,16 +7,16 @@ func _initialize() -> void:
 
 func _run() -> void:
 	print("[verify] Godot ", Engine.get_version_info())
-	print("[verify] Main scene: ", ProjectSettings.get_setting("application/run/main_scene"))
+	print("[verify] 主场景：", ProjectSettings.get_setting("application/run/main_scene"))
 	var tree_root := root
 	var net_node := tree_root.get_node_or_null("Net")
 	var gs := tree_root.get_node_or_null("GameState")
 	if net_node == null or gs == null:
-		push_error("[verify] FAIL: autoloads missing (Net/GameState)")
+		push_error("[verify] 失败：缺少自动加载（Net/GameState）")
 		quit(1)
 		return
-	print("[verify] Net OK, peer_id=", net_node.get_peer_id(), " authority=", net_node.is_authority())
-	print("[verify] GameState OK, max_players=", gs.MAX_PLAYERS)
+	print("[verify] 网络通过，peer_id=", net_node.get_peer_id(), " 权威=", net_node.is_authority())
+	print("[verify] GameState 通过，最多人数=", gs.MAX_PLAYERS)
 
 	var paths := [
 		"res://scripts/lobby.gd",
@@ -29,72 +29,72 @@ func _run() -> void:
 	for path in paths:
 		var res = load(path)
 		if res == null:
-			push_error("[verify] FAIL: cannot load %s" % path)
+			push_error("[verify] 失败：无法加载 %s" % path)
 			quit(1)
 			return
-		# GDScript load may return a script that failed to compile — check
+		# load 可能返回一份没编译过的 GDScript，这里再看一眼。
 		if path.ends_with(".gd") and res is GDScript:
 			var src: GDScript = res
 			if src.get_instance_base_type() == "" and src.get_script_method_list().is_empty():
-				# still might be valid empty; rely on reload
+				# 空脚本也可能合法，真正编译靠后面重新加载。
 				pass
-		print("[verify] loaded ", path)
+		print("[verify] 已加载 ", path)
 
 	var game_script: GDScript = load("res://scripts/game_root.gd")
 	if game_script == null:
-		push_error("[verify] FAIL: game_root.gd null")
+		push_error("[verify] 失败：game_root.gd 为空")
 		quit(1)
 		return
-	# Force compile check by instantiating via PackedScene
+	# 用 PackedScene 实例化，逼它真正编译。
 	var lobby_ps: PackedScene = load("res://scenes/lobby.tscn")
 	var lobby := lobby_ps.instantiate()
 	if lobby == null:
-		push_error("[verify] FAIL: lobby instantiate")
+		push_error("[verify] 失败：大厅实例化失败")
 		quit(1)
 		return
 	tree_root.add_child(lobby)
 	await process_frame
-	print("[verify] lobby instance: ", lobby.name)
+	print("[verify] 大厅实例：", lobby.name)
 	var bg := lobby.get_node_or_null("Bg")
 	if bg == null or not (bg is TextureRect):
-		push_error("[verify] FAIL: lobby Bg is not a TextureRect")
+		push_error("[verify] 失败：大厅背景不是 TextureRect")
 		quit(1)
 		return
 	var bg_tex: Texture2D = (bg as TextureRect).texture
 	if bg_tex == null or bg_tex.get_width() != 960 or bg_tex.get_height() != 720:
-		push_error("[verify] FAIL: lobby background missing or not 960x720")
+		push_error("[verify] 失败：大厅背景缺失或不是 960x720")
 		quit(1)
 		return
 	if (bg as TextureRect).stretch_mode != TextureRect.STRETCH_KEEP_ASPECT_COVERED:
-		push_error("[verify] FAIL: lobby background stretch is not keep-aspect covered")
+		push_error("[verify] 失败：大厅背景拉伸不是保持比例铺满")
 		quit(1)
 		return
 	if (bg as TextureRect).expand_mode != TextureRect.EXPAND_IGNORE_SIZE:
-		push_error("[verify] FAIL: lobby background expand is not ignore size")
+		push_error("[verify] 失败：大厅背景扩展不是忽略尺寸")
 		quit(1)
 		return
 	var title := lobby.get_node_or_null("Center/Panel/Margin/Stack/Title")
 	if title == null or str((title as Label).text) != "摸鱼炸弹人":
-		push_error("[verify] FAIL: lobby title missing")
+		push_error("[verify] 失败：大厅标题缺失")
 		quit(1)
 		return
-	print("[verify] lobby pixel background OK")
+	print("[verify] 大厅像素背景通过")
 	lobby.queue_free()
 	await process_frame
 
 	var game_ps: PackedScene = load("res://scenes/game.tscn")
 	var game := game_ps.instantiate()
 	if game == null:
-		push_error("[verify] FAIL: game instantiate")
+		push_error("[verify] 失败：对局实例化失败")
 		quit(1)
 		return
 	tree_root.add_child(game)
 	await process_frame
 	if game.get("COLS") == null:
-		push_error("[verify] FAIL: game_root script not attached / failed to parse")
+		push_error("[verify] 失败：game_root 脚本没挂上，或解析失败")
 		quit(1)
 		return
-	print("[verify] game instance: ", game.name, " cols=", game.COLS, " rows=", game.ROWS)
+	print("[verify] 对局实例：", game.name, " 列=", game.COLS, " 行=", game.ROWS)
 	game.queue_free()
 
 	var tile_paths := [
@@ -106,14 +106,14 @@ func _run() -> void:
 	for path in tile_paths:
 		var tex = load(path)
 		if tex == null or not (tex is Texture2D):
-			push_error("[verify] FAIL: cannot load %s" % path)
+			push_error("[verify] 失败：无法加载 %s" % path)
 			quit(1)
 			return
 		if (tex as Texture2D).get_width() != 48 or (tex as Texture2D).get_height() != 48:
-			push_error("[verify] FAIL: %s is not 48x48" % path)
+			push_error("[verify] 失败：%s 不是 48x48" % path)
 			quit(1)
 			return
-		print("[verify] loaded ", path)
+		print("[verify] 已加载 ", path)
 
 	var host := Node2D.new()
 	var map := Node2D.new()
@@ -134,12 +134,12 @@ func _run() -> void:
 	board.draw_map(grid, host)
 	await process_frame
 	if map.get_child_count() != 4:
-		push_error("[verify] FAIL: expected 4 tile sprites, got %d" % map.get_child_count())
+		push_error("[verify] 失败：应有 4 张地块精灵，实际 %d" % map.get_child_count())
 		quit(1)
 		return
 	for child in map.get_children():
 		if not (child is Sprite2D) or child is Polygon2D:
-			push_error("[verify] FAIL: map cell is not a Sprite2D")
+			push_error("[verify] 失败：地图格子不是 Sprite2D")
 			quit(1)
 			return
 	var hard: Sprite2D = map.get_child(0)
@@ -147,19 +147,19 @@ func _run() -> void:
 	var soft: Sprite2D = map.get_child(2)
 	var floor_a: Sprite2D = map.get_child(3)
 	if hard.texture != MatchBoard.TEX_HARD or soft.texture != MatchBoard.TEX_SOFT:
-		push_error("[verify] FAIL: hard/soft tile texture mismatch")
+		push_error("[verify] 失败：硬墙或软墙贴图对不上")
 		quit(1)
 		return
 	if floor_b.texture != MatchBoard.TEX_FLOOR_B or floor_a.texture != MatchBoard.TEX_FLOOR_A:
-		push_error("[verify] FAIL: empty floor checker mismatch")
+		push_error("[verify] 失败：空地棋盘格贴图对不上")
 		quit(1)
 		return
 	if hard.centered or hard.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
-		push_error("[verify] FAIL: tile sprite is not top-left nearest")
+		push_error("[verify] 失败：地块精灵不是左上角就近采样")
 		quit(1)
 		return
 	if hard.position != Vector2.ZERO or floor_a.position != Vector2(48, 48):
-		push_error("[verify] FAIL: tile sprite position")
+		push_error("[verify] 失败：地块精灵位置不对")
 		quit(1)
 		return
 	grid[1][0] = Arena.CELL_EMPTY
@@ -167,15 +167,15 @@ func _run() -> void:
 	board.repaint_cells(grid, [Vector2i(0, 1)], host)
 	var painted: Sprite2D = map.get_child(2)
 	if map.get_child_count() != tiles_before or painted.texture != MatchBoard.TEX_FLOOR_B:
-		push_error("[verify] FAIL: soft→empty did not swap to floor_b in place")
+		push_error("[verify] 失败：软墙变空地时没有就地换成 floor_b")
 		quit(1)
 		return
 	for child in map.get_children():
 		if child is Polygon2D:
-			push_error("[verify] FAIL: map still has a color polygon")
+			push_error("[verify] 失败：地图上还留着色块")
 			quit(1)
 			return
-	print("[verify] pixel tiles OK")
+	print("[verify] 像素地块通过")
 	host.queue_free()
-	print("[verify] SUCCESS")
+	print("[verify] 成功")
 	quit(0)

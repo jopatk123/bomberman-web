@@ -1,11 +1,11 @@
 extends Control
-## Login + waiting room. Browse existing rooms after connect; GameState owns room state.
+## 登录和等待房间。连上之后浏览已有房间；房间状态归 GameState。
 
 const _NICK_PATH := "user://nickname.txt"
 const _NICK_LS := "bomberman_nickname"
-## Auto-refresh room list while browsing (seconds).
+## 浏览房间列表时自动刷新的间隔（秒）。
 const DIRECTORY_REFRESH_SEC := 5.0
-## First-visit / empty-field defaults: adjective + noun + 2 digits (≤16 chars).
+## 第一次进来或输入框为空时的默认昵称：形容词 + 名词 + 两位数字（不超过 16 字）。
 const _NICK_ADJ: PackedStringArray = [
 	"摸鱼", "划水", "咸鱼", "躺平", "摆烂", "潜水", "挂机", "佛系", "偷懒", "摸虾",
 ]
@@ -231,7 +231,7 @@ func _on_directory_refresh_tick() -> void:
 
 
 func _auto_connect_if_needed() -> void:
-	# Headless verify scripts / dedicated path should not dial out.
+	# 无界面校验和专用服路径不要主动向外连。
 	if DisplayServer.get_name() == "headless":
 		return
 	if Net.is_dedicated() or Net.is_server:
@@ -395,7 +395,7 @@ func _on_solo_pressed() -> void:
 		"color_idx": 0,
 		"ready": true,
 	}
-	# Bots are not lobby seats. game_root fills the other three corners at match start.
+	# 人机不占大厅座位。开局时由 game_root 把另外三个角补上。
 	GameState.solo_bot = true
 	GameState.host_peer_id = 1
 	GameState.in_match = true
@@ -430,7 +430,7 @@ func _on_disc() -> void:
 
 
 func _on_register_rejected(message: String) -> void:
-	# Still connected in the lobby browser — keep the list, show why join failed.
+	# 还连在大厅浏览里：名单留着，只说明为什么没进成。
 	if _browsing and Net.is_client and Net.is_online() and not _local_in_room():
 		_pending_register = false
 		_stop_register_timer()
@@ -460,8 +460,8 @@ func _show_closed(message: String) -> void:
 
 
 func _on_peer_out(id: int) -> void:
-	# Match scene owns the forfeit once it is current. Lobby only drops the roster
-	# while it is still the current scene (including the frame before the swap).
+	# 对局场景成为当前场景后，弃权由它负责。大厅只在自己还是当前场景时
+	# 从名单里拿掉这个人（包括切场景前的那一帧）。
 	if GameState.peer_in_match(id):
 		return
 	if Net.is_authority():

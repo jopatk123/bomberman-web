@@ -1,7 +1,7 @@
 class_name PlayerStats
 extends RefCounted
-## Per-player bomb capacity, range, speed, kick, and pierce.
-## Pure data. Pickup RPCs stay in game_root.
+## 每人的炸弹容量、火力、移速、踢弹、穿透。
+## 纯数据。拾取 RPC 留在 game_root。
 
 
 const BASE_BLAST := 2
@@ -9,7 +9,7 @@ const BASE_BOMBS := 1
 const MAX_BOMBS := 5
 const MAX_RANGE := 6
 const MAX_SPEED_LVL := 4
-## Index = speed level → move cooldown seconds.
+## 下标是移速等级，值是移动冷却秒数。
 const SPEED_COOLDOWNS := [0.14, 0.115, 0.095, 0.078, 0.062]
 
 enum Kind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3, PIERCE = 4 }
@@ -31,7 +31,7 @@ static func cooldown(stats: Dictionary) -> float:
 	return float(SPEED_COOLDOWNS[lvl])
 
 
-## Returns a new stats dictionary. Kick and pierce stick at 1 for the rest of the match.
+## 返回一份新的属性字典。踢弹和穿透拿到后本局保持为 1。
 static func apply(stats: Dictionary, kind: int) -> Dictionary:
 	var st := stats.duplicate()
 	if not st.has("bombs"):
@@ -60,8 +60,8 @@ static func pack(stats: Dictionary) -> PackedInt32Array:
 	])
 
 
-## Host snapshot overwrites the client. Packs shorter than 5 keep the local pierce
-## (and kick, when shorter than 4) so an older host cannot wipe a newer stat.
+## 主机快照覆盖客机。短于 5 项的包保留本地穿透
+##（短于 4 项时连踢弹也保留），避免旧主机把新属性抹掉。
 static func merge_pack(prev: Dictionary, kind: int, stats: PackedInt32Array) -> Dictionary:
 	if stats.size() >= 4:
 		var pierce := int(prev.get("pierce", 0))

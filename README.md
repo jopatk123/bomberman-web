@@ -21,7 +21,7 @@ Godot **4.7.2**：2D 炸弹人 + **WebSocket** 联机（浏览器）+ **专用�
 
 ```
 bomberman-web/
-  autoload/Net.gd          # WebSocket host/join + Web 默认 WSS
+  autoload/Net.gd          # WebSocket 开房/加入 + 网页默认 WSS
   autoload/GameState.gd
   assets/art/pixel/        # 阶段 A：大厅背景 + 地块贴图
   assets/audio/            # CC0 芯片乐 BGM + 音效（见 CREDITS.md）

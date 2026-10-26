@@ -1,8 +1,8 @@
 extends Node
-## Shared room snapshot: players, host, password, map, ready, in-match.
-## `rooms` is every room on this process. The flat fields mirror the local player's room.
-## Room RPCs live here so they still resolve after a match node exists.
-## Match simulation does not belong in this autoload.
+## 共用的房间快照：玩家、房主、密码、地图、准备、是否对局中。
+## `rooms` 是本进程上的全部房间。扁平字段只镜像本地玩家所在的那一间。
+## 房间 RPC 放在这里，对局节点出现之后仍然解析得到。
+## 对局模拟不属于这个自动加载。
 
 signal player_list_changed
 signal match_starting
@@ -20,7 +20,7 @@ const MSG_NEED_READY := "全员准备后才能开始"
 const MSG_NO_ROOM := "没有这个房间"
 const MSG_BAD_CODE := "房间码是 4 位"
 const MSG_TOO_MANY := "服务器房间已满，稍后再开"
-## Colors for up to 4 players (visual only).
+## 最多 4 人的颜色（只影响外观）。
 const PLAYER_COLORS := [
 	Color(0.2, 0.55, 1.0),
 	Color(1.0, 0.35, 0.3),
@@ -28,30 +28,30 @@ const PLAYER_COLORS := [
 	Color(1.0, 0.85, 0.2),
 ]
 
-## peer_id -> { "name": String, "color_idx": int, "ready": bool }
+## peer_id 对应 { "name": String, "color_idx": int, "ready": bool }
 var players: Dictionary = {}
 var local_player_name: String = "摸鱼人"
 var in_match: bool = false
-## Smallest peer id currently in `players`. Dedicated server (peer 1) is not a player.
+## 当前 `players` 里最小的 peer id。专用服（peer 1）自己不是玩家。
 var host_peer_id: int = 0
 var room_password: String = ""
-## Lobby / match map selection (Arena.MapId).
+## 大厅和对局选的地图（Arena.MapId）。
 var map_id: int = Arena.MAP_RANDOM
-## Resolved soft-wall seed used for the current / next match. -1 = not resolved yet.
+## 本局或下一局已经落定的软墙种子。-1 表示还没落定。
 var soft_seed: int = -1
-## Raw lobby seed field (empty or non-int ⇒ random at resolve).
+## 大厅种子输入框的原文（空或不是整数时，落定时随机）。
 var seed_input: String = ""
-## Shown once on the next lobby screen (disconnect, kick, leave). Survives reset_lobby().
+## 下一屏大厅显示一次（断线、被踢、离开）。reset_lobby() 不会清掉它。
 var pending_notice: String = ""
-## Offline "单机试试". Bots themselves are created at match start by MatchFill, online or not.
+## 离线「单机试试」。人机本身在开局时由 MatchFill 创建，单机和联机都一样。
 var solo_bot: bool = false
-## code -> room dictionary. Authority keeps every room; a client only mirrors `room_code`.
+## 房间码 → 房间字典。权威端留着每一间；客户端只镜像自己的 `room_code`。
 var rooms: Dictionary = {}
-## peer_id -> room code. Authority only.
+## peer_id → 房间码。仅权威端。
 var peer_room: Dictionary = {}
-## Room this peer is sitting in. Empty on a dedicated server and before register.
+## 这个 peer 坐着的房间。专用服上、以及登记之前，为空。
 var room_code: String = ""
-## Public lobby catalog for the login browser (no passwords). Clients mirror from authority.
+## 登录页能看到的公开房间目录（不含密码）。客户端从权威端镜像。
 var lobby_directory: Array = []
 
 
@@ -75,7 +75,7 @@ func reset_lobby() -> void:
 	room_password = ""
 	solo_bot = false
 	lobby_directory.clear()
-	# Keep map_id / seed_input as lobby preferences across disconnects.
+	# 断线后仍保留 map_id / seed_input 这些大厅偏好。
 	soft_seed = -1
 	player_list_changed.emit()
 	lobby_directory_changed.emit()
@@ -121,7 +121,7 @@ func color_for_peer(peer_id: int) -> Color:
 	return PLAYER_COLORS[idx]
 
 
-## Authority: turn seed_input / pending soft_seed into a concrete non-negative int.
+## 权威端：把 seed_input 或尚未落定的 soft_seed 变成一个非负整数。
 func resolve_soft_seed() -> int:
 	if room_code != "" and rooms.has(room_code):
 		return resolve_room_seed(room_code)
@@ -209,8 +209,6 @@ func room_index_text() -> String:
 	return "\n".join(lines)
 
 
-## Empty string means the player was accepted (or was already in a room).
-## An empty code opens a new room. A code joins that room.
 func make_lobby_directory() -> Array:
 	var out: Array = []
 	var codes: Array = rooms.keys()
@@ -266,6 +264,8 @@ func request_lobby_directory() -> void:
 
 
 
+## 空字符串表示这个人已经进房（或本来就在房里）。
+## 房间码为空就新开一间；填了码就加入那一间。
 func try_register(sender: int, player_name: String, password: String, code: String = "") -> String:
 	if sender <= 0:
 		return MSG_BAD_PASSWORD
@@ -430,7 +430,7 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 			if not players.has(host_peer_id):
 				recompute_host()
 	else:
-		# Older snapshots were the players dict itself.
+		# 更早的快照就是玩家字典本身。
 		players = _normalize_players(snapshot)
 		if not players.has(host_peer_id):
 			recompute_host()
@@ -616,7 +616,7 @@ func _rpc_register_player(player_name: String, password: String, code: String = 
 		return
 	var err := try_register(sender, player_name, password, code)
 	if err != "":
-		# Keep the TCP session so the login browser can pick another room.
+		# 保留这条连接，登录页还能再选一间房。
 		_rpc_register_rejected.rpc_id(sender, err)
 		return
 	broadcast_room(str(peer_room.get(sender, "")))

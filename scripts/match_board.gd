@@ -1,8 +1,8 @@
 class_name MatchBoard
 extends RefCounted
-## Map tiles, pawn/bomb/powerup nodes, and short-lived blast or sudden-death FX.
-## Does not decide movement, blasts, or wins.
-## Pixel tiles + entity/blast/soft-break sprites. Sudden-death uses hazard sprites.
+## 地图地块、角色 / 炸弹 / 道具节点，以及短暂的爆炸和突然死亡特效。
+## 不决定移动、爆炸或胜负。
+## 像素地块，加上角色、爆炸、软墙碎裂贴图。突然死亡用危险格贴图。
 
 
 const TILE := 48
@@ -194,7 +194,7 @@ func _blast_tex_for(cell: Vector2i, center: Vector2i, hit_set: Dictionary) -> Te
 		return TEX_BLAST_H
 	if cell.x == center.x:
 		return TEX_BLAST_V
-	# Fallback if a weird diagonal ever appears.
+	# 万一出现斜向命中，用邻格方向挑一张横或竖的焰贴图。
 	var left := hit_set.has(cell + Vector2i(-1, 0))
 	var right := hit_set.has(cell + Vector2i(1, 0))
 	if left or right:
@@ -256,7 +256,7 @@ func _animate_sd_appear(spr: Sprite2D) -> void:
 	if fx_layer == null or not is_instance_valid(spr):
 		return
 	var tree := fx_layer.get_tree()
-	# Pop-in + frame flash, then settle into a soft pulse loop.
+	# 先弹出并闪一帧，再收成轻轻的循环脉动。
 	var t1 := tree.create_timer(0.06)
 	t1.timeout.connect(func() -> void:
 		if not is_instance_valid(spr):

@@ -1,6 +1,6 @@
 class_name BombRecord
 extends RefCounted
-## Shape of one bomb in the match dictionary. Visual nodes stay outside this type.
+## 对局字典里一颗炸弹的字段形状。画面节点不放在这个类型里。
 
 
 const FUSE := 2.0

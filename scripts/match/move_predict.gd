@@ -1,11 +1,11 @@
 class_name MovePredict
 extends RefCounted
-## Client move chain. Index 0 is the last cell the host confirmed.
-## Later entries are steps shown early. Host acks trim the chain; a repeated
-## ack of the head means the in-flight steps were rejected.
+## 客机移动链。下标 0 是主机最后确认的格子。
+## 后面是提前画出来的步。主机确认会裁掉链头；
+## 若再次确认的仍是链头，说明在途的那些步被拒绝了。
 
 
-## Returns {chain, show}. `show` is the cell the local pawn should draw.
+## 返回 {chain, show}。`show` 是本地角色该画在哪一格。
 static func ack(chain: Array, cell: Vector2i) -> Dictionary:
 	var idx := -1
 	for i in chain.size():

@@ -1,26 +1,25 @@
 class_name BlastRules
 extends RefCounted
-## Predictable blast / chain / soft-clear rules (authority computes, clients apply packs).
+## 可预期的爆炸、连环、清软墙规则（权威端算，客户端套用封包）。
 ##
-## RULES (documented + enforced by compute_rays):
-## 1. Blast travels orthogonally up to `blast_range` cells from the bomb center.
-## 2. HARD wall: ray STOPS; cell is NOT hit. Pierce never passes a hard wall.
-## 3. SOFT wall: cell IS hit, soft is destroyed. Without pierce the ray STOPS.
-##    With pierce the ray CONTINUES through that soft, up to `blast_range`.
-## 4. EMPTY: cell is hit; ray continues.
-## 5. Chain: any other bomb whose cell is in hit_cells detonates (caller recurses).
-## 6. Powerups sitting in hit cells are destroyed by the caller, EXCEPT powerups
-##    freshly spawned from soft walls cleared by THIS same explosion.
-## 7. Multi-player same-cell races: authority processes moves/pickups in call order only.
-## 8. Kick into a powerup cell: bomb does NOT enter / collect — stops before (see game_root).
+## 规则（写在这里，并由 compute_rays 执行）：
+## 1. 爆炸从炸弹中心沿上下左右走出，最远 `blast_range` 格。
+## 2. 硬墙：射线停下，这一格不算命中。穿透也过不了硬墙。
+## 3. 软墙：这一格命中，软墙被炸开。没有穿透时射线停在这里；
+##    有穿透则穿过这块软墙继续走，直到用完 `blast_range`。
+## 4. 空地：命中，射线继续。
+## 5. 连环：另一颗炸弹若落在命中格上就会引爆（由调用方递归）。
+## 6. 命中格上的道具由调用方清掉，但本轮爆炸刚从软墙里掉出来的道具除外。
+## 7. 多人抢同一格：权威端只按调用顺序处理移动和拾取。
+## 8. 踢进有道具的格子：炸弹不进入、也不捡道具，停在前一格（见 game_root）。
 
 const CELL_EMPTY := 0
 const CELL_HARD := 1
 const CELL_SOFT := 2
 
 
-## Returns { "hit": Array[Vector2i], "cleared_soft": Array[Vector2i] }
-## `pierce` defaults to false so existing callers keep "soft stops the ray".
+## 返回 { "hit": Array[Vector2i], "cleared_soft": Array[Vector2i] }
+## `pierce` 默认 false，旧调用方仍是「软墙挡住射线」。
 static func compute_rays(
 	grid: Array,
 	origin: Vector2i,

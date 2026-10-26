@@ -1,12 +1,12 @@
 class_name MatchFill
 extends RefCounted
-## Fill a match to 4 fighters when fewer than 4 humans are seated.
-## Pure data: no nodes, no RPC. Lobby rosters stay human-only.
-## Bot peer ids are negative and outside Godot's peer range, so they never
-## become host, never receive input RPCs, and never occupy a lobby seat.
+## 真人不足 4 人时，把对局补到 4 个角色。
+## 纯数据：没有节点，也不发 RPC。大厅名单始终只有真人。
+## 人机的 peer id 是负数，落在 Godot 的 peer 范围之外，
+## 所以不当房主、收不到输入 RPC，也不占大厅座位。
 
 const SLOTS := 4
-## Bot n (1-based) is BOT_ID_ORIGIN - n, i.e. -1001, -1002, -1003, -1004.
+## 第 n 个人机（从 1 起）是 BOT_ID_ORIGIN - n，即 -1001、-1002、-1003、-1004。
 const BOT_ID_ORIGIN := -1000
 const BOT_LABEL := "人机"
 
@@ -16,7 +16,7 @@ static func bot_peer_id(ordinal: int) -> int:
 
 
 static func bot_ordinal(peer_id: int) -> int:
-	# -1001 -> 1, -1002 -> 2. Positive peer ids fall outside 1..SLOTS.
+	# -1001 → 1，-1002 → 2。正数 peer id 不在 1..SLOTS 里。
 	return -peer_id + BOT_ID_ORIGIN
 
 
@@ -29,7 +29,7 @@ static func is_bot_entry(peer_id: int, entry: Dictionary) -> bool:
 	return is_bot_id(peer_id) or bool(entry.get("bot", false))
 
 
-## Humans only, copied. Bot rows are dropped. Input is not modified.
+## 只复制真人。人机行丢掉。不改传入的名单。
 static func humans(roster: Dictionary) -> Dictionary:
 	var out: Dictionary = {}
 	for raw in roster.keys():
@@ -48,8 +48,8 @@ static func humans(roster: Dictionary) -> Dictionary:
 	return out
 
 
-## Copy humans, then append bots into the unused corners until SLOTS fighters.
-## Calling again on the result yields the same ids, names, and colors.
+## 先复制真人，再往空着的角落补人机，直到满 SLOTS。
+## 对结果再调一次，id、名字、颜色都不变。
 static func fill(roster: Dictionary) -> Dictionary:
 	var out := humans(roster)
 	var used: Array = []
@@ -74,8 +74,8 @@ static func fill(roster: Dictionary) -> Dictionary:
 	return out
 
 
-## Humans in ascending peer id (the order spawn corners already use), then bots
-## in 人机1, 人机2, … order. Bots therefore take the corners humans did not.
+## 真人按 peer id 从小到大（出生角已经按这个顺序占），
+## 然后是人机1、人机2……人机因此占真人没占的角。
 static func seat_order(roster: Dictionary) -> Array:
 	var people: Array = []
 	var bots: Array = []
@@ -90,7 +90,7 @@ static func seat_order(roster: Dictionary) -> Array:
 		if id > 0:
 			people.append(id)
 	people.sort()
-	# Bot ids decrease with ordinal (-1001, -1002, …), so reverse id order is 人机1 first.
+	# 人机 id 随序号变小（-1001、-1002……），倒序后才是人机1 在前。
 	bots.sort()
 	bots.reverse()
 	people.append_array(bots)

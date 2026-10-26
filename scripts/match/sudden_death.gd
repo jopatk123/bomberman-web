@@ -1,19 +1,18 @@
 class_name SuddenDeath
 extends RefCounted
-## Shrinking safe zone: after START_AT seconds, border playable cells become
-## permanent lethal fire, expanding inward every INTERVAL seconds after the
-## first ring. Rematch must call reset(). Soft walls in new lethal cells are
-## cleared by caller.
+## 安全区收缩：过了 START_AT 秒后，最外圈可走格变成永久致死火。
+## 第一圈落地之后，每隔 INTERVAL 秒再向里缩一圈。再来一局必须调用 reset()。
+## 新致死格上的软墙由调用方清掉。
 
 const START_AT := 90.0
-## Seconds between rings after the first shrink (first ring lands on activate).
+## 第一圈之后，两圈之间隔多少秒（第一圈在激活当帧落下）。
 const INTERVAL := 15.0
 
 var elapsed: float = 0.0
 var active: bool = false
-## Current shrink depth; -1 = not yet expanded; 0 = first playable ring, …
+## 当前缩了几圈。-1 表示还没开始；0 是第一圈可走环，以此类推。
 var margin: int = -1
-## Vector2i -> true
+## 致死格集合：Vector2i → true
 var lethal: Dictionary = {}
 var _pulse_left: float = 0.0
 
@@ -26,13 +25,13 @@ func reset() -> void:
 	_pulse_left = 0.0
 
 
-## Advance the shared match clock only. Clients call this for the HUD.
-## Lethal cells stay authority-owned via tick().
+## 只推进共用的对局时钟。客机用它刷新界面倒计时。
+## 致死格仍由权威端的 tick() 扩展。
 func advance_elapsed(delta: float) -> void:
 	elapsed += delta
 
 
-## Seconds until the next ring (0 when inactive or about to expand).
+## 距下一圈还有多少秒。未开始或即将扩展时为 0。
 func next_pulse_in() -> float:
 	if not active:
 		return 0.0
@@ -43,16 +42,16 @@ func set_pulse_left(seconds: float) -> void:
 	_pulse_left = maxf(0.0, seconds)
 
 
-## Clients only: tick the HUD countdown between authority syncs (no ring expand).
+## 仅客机：两次权威同步之间，把界面倒计时往前走（不扩圈）。
 func advance_pulse_display(delta: float) -> void:
 	if not active:
 		return
 	_pulse_left = maxf(0.0, _pulse_left - delta)
 
 
-## Call each authority frame while match is running.
-## Returns { "just_activated": bool, "new_cells": Array[Vector2i],
-##           "countdown": float, "active": bool }
+## 对局进行时，权威端每帧调用。
+## 返回 { "just_activated": bool, "new_cells": Array[Vector2i],
+##        "countdown": float, "active": bool }
 func tick(delta: float, cols: int, rows: int, grid: Array, cell_hard: int) -> Dictionary:
 	var result := {
 		"just_activated": false,
@@ -82,7 +81,7 @@ func tick(delta: float, cols: int, rows: int, grid: Array, cell_hard: int) -> Di
 	for c in ring_cells(margin, cols, rows):
 		if lethal.has(c):
 			continue
-		# Skip outer HARD border pillars; only mark walkable / soft playable cells
+		# 跳过最外圈硬墙柱；只标可走格和软墙这类能玩的格子
 		if c.x < 0 or c.y < 0 or c.x >= cols or c.y >= rows:
 			continue
 		if int(grid[c.y][c.x]) == cell_hard:
@@ -93,7 +92,7 @@ func tick(delta: float, cols: int, rows: int, grid: Array, cell_hard: int) -> Di
 	return result
 
 
-## Playable ring at the given margin (0 = first inner ring inside hard border).
+## 给定圈深上的可玩环（0 是硬墙边框内侧的第一圈）。
 static func ring_cells(m: int, cols: int, rows: int) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var x0: int = 1 + m

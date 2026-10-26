@@ -1,13 +1,13 @@
 class_name PowerupDrop
 extends RefCounted
-## Soft-wall drops. The caller supplies the random roll so this stays deterministic in tests.
-## Inserts accepted drops into `powerups`. RPC packing stays with the caller.
+## 软墙掉落。随机数由调用方传入，测试里才能复现。
+## 接受的掉落写进 `powerups`。RPC 打包仍由调用方做。
 
 
 const CHANCE := 0.38
 
 
-## `roll` is a uniform 0..1 sample. Returns the new powerup id, or -1 when nothing drops.
+## `roll` 是 0 到 1 的均匀抽样。返回新道具 id；没掉则 -1。
 static func consider(
 	cell: Vector2i,
 	powerups: Dictionary,
@@ -28,7 +28,7 @@ static func consider(
 	return pid
 
 
-## Returns {spawned, next_id}. `spawned` entries are {id, x, y, kind}.
+## 返回 {spawned, next_id}。`spawned` 每一项是 {id, x, y, kind}。
 static func roll(
 	cleared: Array,
 	powerups: Dictionary,

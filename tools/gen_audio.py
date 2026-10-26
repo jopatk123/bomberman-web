@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Original CC0 chiptune beds and stingers for 摸鱼炸弹人.
+"""摸鱼炸弹人的原创 CC0 芯片乐循环和短句。
 
-Pulse / triangle / noise only. Loops are an integer number of bars with a
-short equal-power crossfade so the seam is adjacent samples, not a hard cut.
-Run from the repo root: python3 tools/gen_audio.py
+只用方波、三角波和噪声。循环是整数小节，接缝处做很短的等功率交叉淡化，
+让前后采样挨在一起，而不是硬切一刀。
+在仓库根目录运行：python3 tools/gen_audio.py
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def _voice(phase: float, kind: str, duty: float) -> float:
     if kind == "tri":
         return tri
     if kind == "lead":
-        # Rounder lobby voice: square blended into a triangle.
+        # 大厅音色圆一点：方波里混进三角波。
         return 0.62 * (1.0 if p < 0.5 else -1.0) + 0.38 * tri
     return pulse
 
@@ -193,7 +193,7 @@ def add_eighth_hats(events: list, bars: int, quiet: float, accent: float) -> Non
 
 
 def lobby_events() -> list:
-    # A minor pentatonic, 8 bars, spacious.
+    # A 小调五声，8 小节，留白多一点。
     melody = [
         -1, 64, 67, 69, -1, 67, 64, -1,
         72, 69, 67, 64, 67, -1, 64, -1,
@@ -204,7 +204,7 @@ def lobby_events() -> list:
         69, 67, 64, 67, 69, 72, 69, 67,
         64, 62, 60, 62, 69, -1, -1, -1,
     ]
-    # Am Am F C | Am F C Am
+    # Am Am F C | Am F C Am（A 小、A 小、F、C，再来一轮收在 A 小）
     roots = [45, 45, 41, 48, 45, 41, 48, 45]
     events: list = []
     add_eighths(events, melody, "lead", 0.16, 0.5)
@@ -214,7 +214,7 @@ def lobby_events() -> list:
 
 
 def match_chords() -> list:
-    # Am Am F E | Am F C E
+    # Am Am F E | Am F C E（前四小节落到 E，后四小节经 C 再落到 E）
     return [
         (45, 48, 52),
         (45, 48, 52),
@@ -249,7 +249,7 @@ def match_events() -> list:
 
 
 def sudden_events() -> list:
-    # Same four-bar riff as the match, plus a soft tritone alarm.
+    # 和对局相同的四小节动机，再加一声很轻的三全音告警。
     events: list = []
     add_eighths(events, match_melody()[:32], "pulse", 0.15, 0.25)
     add_arp_bass(events, match_chords()[:4], 0.3)
@@ -418,8 +418,8 @@ def stats(name: str, samples: list) -> None:
     seam = abs(samples[0] - samples[-1])
     adj = max(abs(samples[i] - samples[i - 1]) for i in range(1, len(samples)))
     print(
-        f"{name:16} {len(samples) / SR:6.2f}s  peak {peak:.2f}  rms {rms:.3f}  "
-        f"seam {seam:.4f}  maxstep {adj:.4f}"
+        f"{name:16} {len(samples) / SR:6.2f}秒  峰值 {peak:.2f}  均方根 {rms:.3f}  "
+        f"接缝 {seam:.4f}  最大步进 {adj:.4f}"
     )
 
 

@@ -1,6 +1,6 @@
 extends Node
-## Music and overlapping SFX. Headless and dedicated servers stay silent.
-## Web audio starts only after a user gesture so the page does not spam autoplay errors.
+## 背景音乐，以及可以叠在一起的音效。无界面和专用服保持静音。
+## 网页要等用户点一下或按一下键才出声，避免一打开就刷自动播放错误。
 
 const MUSIC := {
 	"lobby": "res://assets/audio/bgm/lobby.ogg",
@@ -267,7 +267,7 @@ func _load_streams() -> void:
 
 func _load_one(path: String, loop: bool) -> AudioStream:
 	if not ResourceLoader.exists(path):
-		push_error("[Audio] missing %s" % path)
+		push_error("[Audio] 缺少 %s" % path)
 		return null
 	var stream := load(path) as AudioStream
 	if stream is AudioStreamOggVorbis:

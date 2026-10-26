@@ -1,6 +1,6 @@
 extends Node
-## WebSocket multiplayer: dedicated server or thin client.
-## Browser-compatible (no ENet).
+## WebSocket 联机：专用服，或只发输入的瘦客户端。
+## 浏览器能用（不用 ENet）。
 
 signal server_started(port: int)
 signal connected_to_server
@@ -11,7 +11,7 @@ signal disconnected
 
 const DEFAULT_PORT := 9080
 const DEFAULT_HOST := "127.0.0.1"
-## Production reverse-proxy path (nginx → dedicated server).
+## 生产环境反代路径（nginx 转到专用服）。
 const WEB_WS_PATH := "/ws"
 
 var peer: WebSocketMultiplayerPeer
@@ -38,17 +38,17 @@ func _maybe_start_from_cmdline() -> void:
 			want_server = true
 		elif a.begins_with("--port="):
 			port = int(a.get_slice("=", 1))
-	# Also honor plain --headless launch with -- --server
+	# 无界面启动时，同样认 `-- --server`。
 	if want_server:
 		var err := host(port)
 		if err != OK:
-			push_error("Dedicated server failed to bind port %d: %s" % [port, error_string(err)])
+			push_error("专用服绑定端口 %d 失败：%s" % [port, error_string(err)])
 			get_tree().quit(1)
 		else:
-			print("[Net] Dedicated WebSocket server on port %d" % port)
+			print("[Net] 专用 WebSocket 服已监听端口 %d" % port)
 
 
-## Desktop: host:port. Web (HTTPS page): wss://same-host/ws
+## 桌面端是主机:端口。网页（HTTPS）是同主机的 wss://…/ws。
 func get_default_join_address() -> String:
 	if OS.has_feature("web"):
 		return _web_default_ws_url()
@@ -56,7 +56,7 @@ func get_default_join_address() -> String:
 
 
 func _web_default_ws_url() -> String:
-	# JavaScriptBridge is only available on the web platform.
+	# JavaScriptBridge 只有网页平台才有。
 	if not OS.has_feature("web"):
 		return "wss://localhost%s" % WEB_WS_PATH
 	var js := '(() => { const p = location.protocol === "https:" ? "wss:" : "ws:"; return p + "//" + location.host + "%s"; })()' % WEB_WS_PATH
@@ -81,7 +81,7 @@ func host(port: int = DEFAULT_PORT) -> Error:
 	is_client = false
 	listen_port = port
 	server_started.emit(port)
-	print("[Net] Hosting on ws://0.0.0.0:%d (peer_id=%d)" % [port, multiplayer.get_unique_id()])
+	print("[Net] 正在监听 ws://0.0.0.0:%d（peer_id=%d）" % [port, multiplayer.get_unique_id()])
 	return OK
 
 
@@ -100,7 +100,7 @@ func join(address: String = "") -> Error:
 	multiplayer.multiplayer_peer = peer
 	is_server = false
 	is_client = true
-	print("[Net] Connecting to %s ..." % url)
+	print("[Net] 正在连接 %s ……" % url)
 	return OK
 
 
@@ -113,7 +113,7 @@ func close() -> void:
 	is_client = false
 
 
-## Cmdline `--server` / `--dedicated`. The listen-server player is not this.
+## 命令行 `--server` / `--dedicated`。本机听服的玩家不算这种。
 func is_dedicated() -> bool:
 	if not is_server:
 		return false
@@ -123,7 +123,7 @@ func is_dedicated() -> bool:
 	return false
 
 
-## Drop a client. Peer 1 is the server itself and is never kicked.
+## 踢掉一个客户端。Peer 1 是服务器自己，永远不踢。
 func disconnect_peer(peer_id: int) -> void:
 	if peer == null or not is_server:
 		return
@@ -141,39 +141,39 @@ func get_peer_id() -> int:
 
 
 func is_online() -> bool:
-	# OfflineMultiplayerPeer is installed by default and is not a session.
+	# 默认装着 OfflineMultiplayerPeer，那不算一场联机会话。
 	return is_server or is_client
 
 
 func is_authority() -> bool:
-	## Dedicated server (peer 1) or offline solo.
+	# 专用服（peer 1）或离线单机。
 	if not is_online():
 		return true
 	return multiplayer.is_server()
 
 
 func _on_peer_connected(id: int) -> void:
-	print("[Net] Peer connected: %d" % id)
+	print("[Net] 对端已连接：%d" % id)
 	peer_connected.emit(id)
 
 
 func _on_peer_disconnected(id: int) -> void:
-	print("[Net] Peer disconnected: %d" % id)
+	print("[Net] 对端已断开：%d" % id)
 	peer_disconnected.emit(id)
 
 
 func _on_connected_to_server() -> void:
-	print("[Net] Connected to server as %d" % multiplayer.get_unique_id())
+	print("[Net] 已连上服务器，本机编号 %d" % multiplayer.get_unique_id())
 	connected_to_server.emit()
 
 
 func _on_connection_failed() -> void:
-	print("[Net] Connection failed")
+	print("[Net] 连接失败")
 	close()
 	connection_failed.emit()
 
 
 func _on_server_disconnected() -> void:
-	print("[Net] Server disconnected")
+	print("[Net] 服务器已断开")
 	close()
 	disconnected.emit()

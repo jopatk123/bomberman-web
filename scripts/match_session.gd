@@ -1,12 +1,12 @@
 class_name MatchSession
 extends RefCounted
-## Leave, kick, disconnect, mid-match forfeit, and empty dedicated-room return.
-## Death RPCs stay on the match conductor. This type does not declare @rpc.
+## 离开、被踢、断线、中途弃权，以及专用服空房回大厅。
+## 死亡 RPC 留在对局编排脚本。这个类型自己不声明 @rpc。
 
 const LOBBY := "res://scenes/lobby.tscn"
 
 var leaving: bool = false
-## Dedicated server already left the match scene for an empty room.
+## 专用服已经因为空房离开了对局场景。
 var left_for_lobby: bool = false
 
 
@@ -50,8 +50,8 @@ func on_peer_out(id: int, forfeit: Callable) -> void:
 	forfeit.call(int(id))
 
 
-## `kill` is (peer_id, reason). `refresh_rematch` runs when the match had already ended.
-## Empty `roster` means the flat GameState.players mirror (offline tests and solo).
+## `kill` 的参数是 (peer_id, reason)。对局已经结束时才调用 `refresh_rematch`。
+## `roster` 为空时用扁平的 GameState.players（离线测试和单机）。
 func forfeit_peer(
 	tree: SceneTree,
 	id: int,
@@ -92,5 +92,5 @@ func return_dedicated(tree: SceneTree) -> void:
 	left_for_lobby = true
 	leaving = true
 	GameState.reset_lobby()
-	print("[Game] Dedicated room empty, returning to waiting room")
+	print("[Game] 专用服这间房已空，回到等待房间")
 	tree.call_deferred("change_scene_to_file", LOBBY)

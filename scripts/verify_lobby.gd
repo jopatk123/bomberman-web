@@ -362,8 +362,24 @@ func _check_lobby_ui(gs) -> bool:
 		return false
 	lobby.name_edit.text = ""
 	lobby._commit_nickname()
-	if gs.local_player_name != "摸鱼人":
-		push_error("[verify_lobby] FAIL: empty nickname default")
+	var auto_nick: String = gs.local_player_name
+	if auto_nick.is_empty() or auto_nick.length() > 16 or lobby.name_edit.text != auto_nick:
+		push_error("[verify_lobby] FAIL: empty nickname should auto-fill random")
+		return false
+	if auto_nick == "摸鱼人":
+		push_error("[verify_lobby] FAIL: default nick still fixed 摸鱼人")
+		return false
+	lobby.name_edit.text = ""
+	lobby._commit_nickname()
+	if gs.local_player_name == auto_nick:
+		# Extremely unlikely collision of adj+noun+2digits; still must be non-empty.
+		if gs.local_player_name.is_empty():
+			push_error("[verify_lobby] FAIL: second random nick empty")
+			return false
+	# Fresh load with no save path: field should get a random suggestion.
+	var suggested: String = lobby._random_nickname()
+	if suggested.is_empty() or suggested.length() > 16:
+		push_error("[verify_lobby] FAIL: _random_nickname bad %s" % suggested)
 		return false
 	gs.reset_lobby()
 	gs.try_register(4, "小明", "")

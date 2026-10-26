@@ -199,7 +199,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "摸鱼人"
+placeholder_text = "随机昵称"
 max_length = 16
 
 [node name="RoomListLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox"]

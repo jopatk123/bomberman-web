@@ -5,6 +5,14 @@ const _NICK_PATH := "user://nickname.txt"
 const _NICK_LS := "bomberman_nickname"
 ## Auto-refresh room list while browsing (seconds).
 const DIRECTORY_REFRESH_SEC := 5.0
+## First-visit / empty-field defaults: adjective + noun + 2 digits (≤16 chars).
+const _NICK_ADJ: PackedStringArray = [
+	"摸鱼", "划水", "咸鱼", "躺平", "摆烂", "潜水", "挂机", "佛系", "偷懒", "摸虾",
+]
+const _NICK_NOUN: PackedStringArray = [
+	"炸弹", "土豆", "青蛙", "企鹅", "仓鼠", "猫咪", "鸭鸭", "熊猫",
+	"幽灵", "矿工", "水手", "队长", "骑士", "狐狸", "狗子", "西瓜",
+]
 
 @onready var subtitle: Label = %Subtitle
 @onready var login_box: VBoxContainer = %LoginBox
@@ -794,18 +802,26 @@ func _local_in_room() -> bool:
 func _commit_nickname() -> void:
 	var nick := name_edit.text.strip_edges()
 	if nick.is_empty():
-		nick = "摸鱼人"
+		nick = _random_nickname()
+		name_edit.text = nick
 	if nick.length() > 16:
 		nick = nick.substr(0, 16)
 	GameState.local_player_name = nick
 	_save_nickname(nick)
 
 
+func _random_nickname() -> String:
+	var adj := _NICK_ADJ[randi() % _NICK_ADJ.size()]
+	var noun := _NICK_NOUN[randi() % _NICK_NOUN.size()]
+	return "%s%s%02d" % [adj, noun, randi() % 100]
+
+
 func _load_nickname_into_field() -> void:
 	var saved := _load_saved_nickname()
+	if saved.is_empty():
+		saved = _random_nickname()
 	name_edit.text = saved
-	if not saved.is_empty():
-		GameState.local_player_name = saved
+	GameState.local_player_name = saved
 
 
 func _load_saved_nickname() -> String:

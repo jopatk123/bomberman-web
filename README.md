@@ -24,6 +24,7 @@ bomberman-web/
   autoload/Net.gd          # WebSocket host/join + Web 默认 WSS
   autoload/GameState.gd
   assets/art/pixel/        # 阶段 A：大厅背景 + 地块贴图
+  assets/audio/            # CC0 芯片乐 BGM + 音效（见 CREDITS.md）
   scenes/lobby.tscn        # 大厅（主场景）
   scenes/game.tscn
   scripts/…
@@ -145,7 +146,20 @@ bomberman.jopatk.top {
 
 开局每人 1 颗炸弹、火力 2 格，引信约 2 秒。炸开软墙有机会掉落：炸弹+（最多同时 5 颗）、火力+（最多 6 格）、移速、踢弹、穿透。踢弹把炸弹沿直线滑出去；穿透让爆炸穿过软墙。地图 13×11，四选一（经典 / 开阔 / 十字 / 迷宫），最多 4 人。90 秒后安全区开始收缩。阵亡后留在局里观战。
 
-联机时，移动和放炸弹会先在自己屏幕上显示，主机确认后再对齐；对不上就拉回主机那一格。爆炸和拾取有短音效。
+联机时，移动和放炸弹会先在自己屏幕上显示，主机确认后再对齐；对不上就拉回主机那一格。
+
+## 音频
+
+像素芯片乐（大厅 / 对局 / 突然死亡循环，以及胜负短句）和音效都在 `assets/audio/`，许可见 [assets/audio/CREDITS.md](assets/audio/CREDITS.md)。曲目是仓库里 `tools/gen_audio.py` 生成的原创，CC0，可再分发。
+
+大厅有「音乐 / 音效」开关，选择记在 `user://audio.cfg`，默认开。网页要先点一下或按一下键才会出声，避免一打开就触发浏览器自动播放失败。
+
+本地试听：进大厅后点任意处听大厅循环；「单机试试」切到对局；约 90 秒后突然死亡会换成更急的循环；结算播胜/负短句，回大厅再接大厅曲。
+
+```bash
+python3 tools/gen_audio.py   # 重新生成 ogg
+godot --headless --path . -s res://scripts/verify_audio.gd
+```
 
 ## 已知限制
 

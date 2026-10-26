@@ -74,7 +74,6 @@ var _session := MatchSession.new()
 var room_code: String = ""
 ## Fighters for this round, including bots. Lobby GameState keeps humans only.
 var match_roster: Dictionary = {}
-var _sfx: Node
 
 ## Forwarded so existing checks can read the board's fire polygons.
 var _sd_visuals: Dictionary:
@@ -107,8 +106,6 @@ func _ready() -> void:
 		GameState.kicked.connect(_on_kicked_out)
 	if not GameState.player_list_changed.is_connected(_on_roster_changed):
 		GameState.player_list_changed.connect(_on_roster_changed)
-	_sfx = preload("res://scripts/sfx.gd").new()
-	add_child(_sfx)
 	if Net.is_dedicated():
 		visible = false
 		hud.visible = false
@@ -126,6 +123,7 @@ func _ready() -> void:
 	else:
 		_hud.set_status("等待主机同步地图…")
 	_refresh_stats_hud()
+	_play_match_bed()
 	set_process(true)
 
 
@@ -323,6 +321,7 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 		_predict.seed(player_nodes[me].get_meta("cell"))
 	_refresh_stats_hud()
 	_refresh_sudden_death_hud()
+	_play_match_bed()
 
 
 func _spawn_all_players() -> void:
@@ -466,6 +465,10 @@ func _try_kick_bomb(bid: int, dx: int, dy: int) -> bool:
 	if not _can_bomb_slide_to(dest, blockers[0], blockers[1]):
 		return false
 	_move_bomb_to(bid, dest)
+	if Net.is_online():
+		_notify_room("_rpc_fx", ["kick"])
+	else:
+		Audio.play_sfx("kick")
 	# Entering existing fire detonates immediately and removes the bomb.
 	if not bombs.has(bid):
 		return true
@@ -630,6 +633,7 @@ func _rpc_spawn_bomb(bid: int, x: int, y: int, owner: int, blast: int = BASE_BLA
 
 func _spawn_bomb_visual(bid: int, cell: Vector2i) -> void:
 	_board.spawn_bomb(bid, cell)
+	Audio.play_sfx("place_bomb")
 
 
 func _clear_bomb_visuals() -> void:
@@ -753,7 +757,7 @@ func _destroy_powerups_in(hit_cells: Array[Vector2i], just_spawned: Array) -> vo
 
 
 func _apply_boom_visual(bid: int, hit_cells: Array[Vector2i], cleared_soft: Array = []) -> void:
-	_board.play_boom(bid, hit_cells, _sfx, cleared_soft)
+	_board.play_boom(bid, hit_cells, Audio, cleared_soft)
 
 
 func _spawn_powerup_visual(pid: int, cell: Vector2i, kind: int) -> void:
@@ -793,8 +797,7 @@ func _try_pickup_at(peer_id: int, cell: Vector2i) -> void:
 		_notify_room("_rpc_pickup", [peer_id, found, kind, _stats_pack(peer_id)])
 	else:
 		_refresh_stats_hud()
-		if _sfx:
-			_sfx.play_pickup()
+		Audio.play_pickup()
 
 
 func _stats_pack(peer_id: int) -> PackedInt32Array:
@@ -812,8 +815,7 @@ func _rpc_pickup(peer_id: int, powerup_id: int, kind: int, stats: PackedInt32Arr
 	var prev: Dictionary = player_stats.get(peer_id, {})
 	player_stats[peer_id] = PlayerStats.merge_pack(prev, kind, stats)
 	_refresh_stats_hud()
-	if _sfx:
-		_sfx.play_pickup()
+	Audio.play_pickup()
 	if player_nodes.has(peer_id):
 		var n: Node2D = player_nodes[peer_id]
 		_board.pulse_player(n, func() -> bool: return alive.get(peer_id, false))
@@ -915,15 +917,21 @@ func _on_sudden_death_started() -> void:
 	_hud.invalidate_sudden_death()
 	_hud.set_status("⚠ 突然死亡！")
 	_refresh_sudden_death_hud()
+	if not Net.is_dedicated():
+		Audio.play_music("sudden_death")
 
 
 @rpc("authority", "reliable")
 func _rpc_sync_match_clock(elapsed: float, is_active: bool, pulse_left: float = -1.0) -> void:
+	var became := is_active and not sudden.active
 	sudden.elapsed = elapsed
 	if is_active:
 		sudden.active = true
 	if pulse_left >= 0.0:
 		sudden.set_pulse_left(pulse_left)
+	if became:
+		_on_sudden_death_started()
+		return
 	_hud.invalidate_sudden_death()
 	_refresh_sudden_death_hud()
 
@@ -969,6 +977,7 @@ func _rpc_player_died(peer_id: int, reason: String = "") -> void:
 
 
 func _show_death(peer_id: int) -> void:
+	Audio.play_sfx("death")
 	if not player_nodes.has(peer_id):
 		return
 	var node: Node2D = player_nodes[peer_id]
@@ -996,6 +1005,7 @@ func _show_end_screen(winner_name: String) -> void:
 	_hud.show_end(winner_name)
 	_refresh_spectator_hud()
 	_refresh_rematch_button()
+	_play_outcome_jingle(winner_name)
 
 
 func _refresh_rematch_button() -> void:
@@ -1015,6 +1025,7 @@ func _rpc_match_over(winner_name: String) -> void:
 
 
 func _on_rematch() -> void:
+	Audio.play_sfx("ui_click")
 	var me := _local_control_id()
 	if not can_request_rematch(Net.is_online(), me, _host_id(), _roster().size()):
 		return
@@ -1064,7 +1075,35 @@ func _restart_match() -> void:
 	_hud.set_status(_status_line("再来一局"))
 
 
+func _play_match_bed() -> void:
+	if Net.is_dedicated():
+		return
+	Audio.play_music("match")
+
+
+func _play_outcome_jingle(winner_name: String) -> void:
+	if Net.is_dedicated():
+		return
+	var mine := ""
+	var me := _local_control_id()
+	var roster := _participants()
+	if roster.has(me):
+		mine = str(roster[me].get("name", ""))
+	if winner_name != "" and winner_name == mine:
+		Audio.play_music("win")
+	else:
+		Audio.play_music("lose")
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_fx(name: String) -> void:
+	if name != "kick":
+		return
+	Audio.play_sfx("kick")
+
+
 func _on_back() -> void:
+	Audio.play_sfx("ui_click")
 	_session.on_back(get_tree())
 
 

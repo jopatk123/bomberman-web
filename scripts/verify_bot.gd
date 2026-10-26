@@ -226,9 +226,10 @@ func _solo_scene() -> void:
 		_fail("ghost survived clear")
 		return
 	print("[verify_bot] bomb ghost OK")
-	var wav: PackedFloat32Array = game._sfx._boom_samples()
-	if wav.is_empty():
-		_fail("boom sample empty")
+	var audio := root.get_node("Audio")
+	audio.play_boom()
+	if not ResourceLoader.exists(audio.sfx_path("boom")):
+		_fail("boom sample missing")
 		return
 	print("[verify_bot] solo scene OK")
 	print("[verify_bot] SUCCESS")

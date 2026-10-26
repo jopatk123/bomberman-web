@@ -12,11 +12,11 @@
 
 | 路径 | 放什么 | 不放什么 |
 |------|--------|----------|
-| `autoload/` | 跨场景单例：`Net.gd`、`GameState.gd` | 格子模拟、爆炸、HUD 细节 |
+| `autoload/` | 跨场景单例：`Net.gd`、`GameState.gd`、`Audio.gd`（BGM/SFX） | 格子模拟、爆炸、HUD 细节 |
 | `scripts/match/` | **纯逻辑**模块（`RefCounted` / `class_name`）：爆炸规则、突然死亡、踢炸弹、地图生成等 | 节点树、`rpc`、UI 控件 |
 | `scripts/`（根下） | 场景编排与表现：`game_root.gd`、`lobby.gd`、`player.gd`、`bomb.gd`、`powerup.gd` | 大段可抽离的规则算法 |
 | `scenes/` | `.tscn` 场景与节点布局 | 业务规则（规则写脚本） |
-| `assets/` | 字体、主题、贴图。像素街机在 `assets/art/pixel/`（大厅背景、地块、角色/炸弹、爆炸碎裂） | 逻辑代码 |
+| `assets/` | 字体、主题、贴图、音频。像素街机在 `assets/art/pixel/`；芯片乐在 `assets/audio/`（出处见 `CREDITS.md`） | 逻辑代码 |
 | `deploy/` | Docker / nginx / systemd | 游戏逻辑 |
 | `scripts/verify_*.gd` | headless 冒烟（`-s`） | 正式运行入口 |
 | `docs/` | 架构与设计说明 | — |
@@ -59,7 +59,7 @@ scripts/lobby.gd  /  scripts/game_root.gd   ← RPC + 节点
     ↓
 scripts/match/*   ← 纯逻辑（可单测）
     ↓
-autoload Net / GameState   ← 仅连接与大厅快照
+autoload Net / GameState / Audio   ← 连接、大厅快照、播放
 ```
 
 禁止反向依赖：`match/*` 不得 `load` 场景或依赖 HUD 节点。
@@ -116,7 +116,7 @@ autoload Net / GameState   ← 仅连接与大厅快照
 - 软墙被炸开或被火圈清掉时，只重绘变化的格子，不重建整张地图
 - 炸弹数 HUD 在放置、爆炸、吞弹、捡道具时刷新，不在每帧重写 Label
 - 客机移动先按本地格子预演，放炸弹先放一个影子；主机格子对不上时拉回。踢弹不预演，等主机把炸弹推走再对齐
-- 爆炸、拾取播放程序生成的短音效（`scripts/sfx.gd`），无界面时不播
+- 音乐和音效走 autoload `Audio`（`Music` / `Sfx` 总线，BGM 淡入淡出，音效可重叠）。大厅循环、对局、突然死亡、胜负短句都在 `assets/audio/`。浏览器要等第一次点击或按键才出声。静音开关写在 `user://audio.cfg`。无界面时播放接口直接返回，不播声
 
 ## 改动检查清单（PR / 提交前）
 

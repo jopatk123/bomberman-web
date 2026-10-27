@@ -13,6 +13,8 @@ const DEFAULT_PORT := 9080
 const DEFAULT_HOST := "127.0.0.1"
 ## 生产环境反代路径（nginx 转到专用服）。
 const WEB_WS_PATH := "/ws"
+## 网页导出的默认联机地址。页面挂在小玩具或别的 CDN 上时也走杭州，不跟 location.host。
+const PRODUCTION_WS_URL := "wss://bomberman.jopatk.top/ws"
 
 var peer: WebSocketMultiplayerPeer
 var is_server: bool = false
@@ -48,25 +50,60 @@ func _maybe_start_from_cmdline() -> void:
 			print("[Net] 专用 WebSocket 服已监听端口 %d" % port)
 
 
-## 桌面端是主机:端口。网页（HTTPS）是同主机的 wss://…/ws。
+## 桌面端是 127.0.0.1:9080。网页导出默认连杭州；本机页面仍连当前主机的 /ws。
 func get_default_join_address() -> String:
 	if OS.has_feature("web"):
 		return _web_default_ws_url()
 	return "%s:%d" % [DEFAULT_HOST, DEFAULT_PORT]
 
 
+## 纯判断，方便无界面脚本覆盖本机 / 线上两条分支。page_host 用 location.host（可带端口）。
+func resolve_web_join_url(page_host: String, https: bool) -> String:
+	var host := page_host.strip_edges()
+	if not is_local_web_host(host):
+		return PRODUCTION_WS_URL
+	var scheme := "wss" if https else "ws"
+	return "%s://%s%s" % [scheme, host, WEB_WS_PATH]
+
+
+## localhost、127.0.0.1、::1（可带端口）算本机页面。其它域名，包括小玩具，都不是。
+func is_local_web_host(page_host: String) -> bool:
+	var name := _web_page_hostname(page_host)
+	return name == "localhost" or name == "127.0.0.1" or name == "::1"
+
+
+func _web_page_hostname(page_host: String) -> String:
+	var host := page_host.strip_edges().to_lower()
+	if host.begins_with("["):
+		var end := host.find("]")
+		if end <= 1:
+			return ""
+		return host.substr(1, end - 1)
+	# 只有「一个冒号 + 端口」才切开，避免把裸 IPv6 切坏。
+	var colon := host.find(":")
+	if colon >= 0 and host.find(":", colon + 1) < 0:
+		var port := host.substr(colon + 1)
+		if port.is_empty() or port.is_valid_int():
+			return host.substr(0, colon)
+	return host
+
+
 func _web_default_ws_url() -> String:
-	# JavaScriptBridge 只有网页平台才有。
+	# 读不到页面地址时连杭州。小玩具上比误连 localhost 安全。
 	if not OS.has_feature("web"):
-		return "wss://localhost%s" % WEB_WS_PATH
-	var js := '(() => { const p = location.protocol === "https:" ? "wss:" : "ws:"; return p + "//" + location.host + "%s"; })()' % WEB_WS_PATH
+		return PRODUCTION_WS_URL
+	# JavaScriptBridge 只有网页导出才有。这里只取 host 和协议，地址由 resolve_web_join_url 决定。
+	var js := "(() => { var loc = (typeof location !== 'undefined') ? location : null; var host = (loc && loc.host) ? String(loc.host) : ''; var https = !!(loc && loc.protocol === 'https:'); return host + '\\n' + (https ? '1' : '0'); })()"
 	var result = JavaScriptBridge.eval(js, true)
 	if result == null:
-		return "wss://localhost%s" % WEB_WS_PATH
-	var url := str(result)
-	if url.is_empty() or url == "null" or url == "undefined":
-		return "wss://localhost%s" % WEB_WS_PATH
-	return url
+		return PRODUCTION_WS_URL
+	var raw := str(result)
+	if raw.is_empty() or raw == "null" or raw == "undefined":
+		return PRODUCTION_WS_URL
+	var nl := raw.find("\n")
+	if nl < 0:
+		return PRODUCTION_WS_URL
+	return resolve_web_join_url(raw.substr(0, nl), raw.substr(nl + 1) == "1")
 
 
 func host(port: int = DEFAULT_PORT) -> Error:

@@ -15,7 +15,7 @@ Godot **4.7.2**：2D 炸弹人 + **WebSocket** 联机（浏览器）+ **专用�
 - **本地端口**：`9080` → `ws://host:9080`
 - **生产**：`wss://bomberman.jopatk.top/ws`（Nginx `/ws` → 游戏服 9080）
 
-网页端大厅默认加入地址会自动变成 `wss://当前域名/ws`（见 `Net.get_default_join_address()`）。
+网页端大厅默认加入 `wss://bomberman.jopatk.top/ws`，不跟当前页面域名走，所以静态页可以挂在 B 站小玩具上。本机打开的页面（`localhost` / `127.0.0.1`）仍连当前主机的 `/ws`。见 `Net.get_default_join_address()` 与 [docs/DEPLOY-TOY.md](docs/DEPLOY-TOY.md)。
 
 ## 目录
 
@@ -37,6 +37,8 @@ bomberman-web/
     docker-compose.yml
     nginx.conf             # 静态站 + /ws 反代
     build-images.sh
+  tools/pack_toy.sh        # 把 build/web 打成小玩具 zip
+  docs/DEPLOY-TOY.md       # 小玩具托管说明
   project.godot
   README.md
 ```
@@ -52,7 +54,7 @@ PROJECT=/workspace/bomberman-web
 
 进大厅点 **「单机试试」**。不足 4 名真人时，开局会补「人机1」「人机2」…直到满员。WASD 移动，空格放雷。
 
-联机：填昵称后点 **「进入房间」**。房间码留空会新开一间，把码发给同事即可加入；填了码就进那一间。房主（该房玩家中编号最小的人）选地图，全员点 **「准备」** 后由房主 **「开始对局」**。不再满 2 人自动开局。同一台专用服上可以同时有多间房。网页端没有「本机开房」，默认连 `wss://当前域名/ws`。
+联机：填昵称后点 **「进入房间」**。房间码留空会新开一间，把码发给同事即可加入；填了码就进那一间。房主（该房玩家中编号最小的人）选地图，全员点 **「准备」** 后由房主 **「开始对局」**。不再满 2 人自动开局。同一台专用服上可以同时有多间房。网页端没有「本机开房」，默认连 `wss://bomberman.jopatk.top/ws`。
 
 ### 无界面专用服 + 客户端
 
@@ -71,6 +73,7 @@ cd /workspace/bomberman-web
 godot --headless --path . --export-release "Web" build/web/index.html
 godot --headless --path . --export-release "Linux Server" build/server/bomberman-server.x86_64
 chmod +x build/server/bomberman-server.x86_64
+./tools/pack_toy.sh          # 可选：打成 build/toy/bomberman-toy.zip，见 docs/DEPLOY-TOY.md
 ```
 
 产物量级（约）：

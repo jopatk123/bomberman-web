@@ -5,7 +5,8 @@
 *.x86_64
 *.apk
 *.aab
-# Local export artifacts (Docker copies from build/ at image build time)
+# Local export artifacts (Docker copies from build/ at image build time).
+# build/toy/（tools/pack_toy.sh）同样不要提交 wasm / zip。
 build/
 # Keep export_presets.cfg tracked
 !export_presets.cfg

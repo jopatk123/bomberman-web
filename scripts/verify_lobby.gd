@@ -286,8 +286,8 @@ func _check_sources() -> bool:
 	if scene_src.find("corner_radius") >= 0:
 		push_error("[verify_lobby] 失败：大厅里还有圆角样式")
 		return false
-	if lobby_src.find("将连接本站游戏服") < 0 or lobby_src.find("OS.has_feature(\"web\")") < 0:
-		push_error("[verify_lobby] 失败：网页端开房或地址折叠缺失")
+	if lobby_src.find("将连接 %s") < 0 or lobby_src.find("get_default_join_address") < 0 or lobby_src.find("OS.has_feature(\"web\")") < 0:
+		push_error("[verify_lobby] 失败：网页端开房或地址提示缺失")
 		return false
 	if state_src.find("_rpc_sync_map_settings") < 0 or state_src.find("对局中，请稍后再来") < 0 or state_src.find("没有这个房间") < 0:
 		push_error("[verify_lobby] 失败：GameState 房间 RPC 或拒绝文案缺失")

@@ -313,7 +313,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.74, 0.75, 0.7, 1)
 theme_override_constants/outline_size = 0
 theme_override_font_sizes/font_size = 14
-text = "将连接本站游戏服"
+text = "将连接 wss://bomberman.jopatk.top/ws"
 autowrap_mode = 3
 
 [node name="PortRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/AdvancedBox"]

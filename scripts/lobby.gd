@@ -198,7 +198,7 @@ func _apply_platform_chrome() -> void:
 	if _web:
 		host_btn.visible = false
 		port_row.visible = false
-		web_hint.text = "将连接本站游戏服"
+		web_hint.text = "将连接 %s" % Net.get_default_join_address()
 	else:
 		host_btn.visible = true
 		port_row.visible = true

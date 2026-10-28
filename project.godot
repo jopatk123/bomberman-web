@@ -75,3 +75,7 @@ theme/default_font_hinting=0
 theme/default_font_subpixel_positioning=0
 theme/default_font_generate_mipmaps=false
 theme/default_font_multichannel_signed_distance_field=false
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/minimize_html_build/plugin.cfg")

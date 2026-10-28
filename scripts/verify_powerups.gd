@@ -106,29 +106,29 @@ func _run() -> void:
 		return
 	print("[verify_pu] 道具外观通过 数量=", game.powerups_layer.get_child_count())
 
-	game._spawn_powerup_visual(4242, soft, game.PKind.PIERCE)
-	var pierce_vis: Node = game.powerups_layer.get_node_or_null("Powerup_4242")
-	if pierce_vis == null:
-		push_error("[verify_pu] 失败：看不到穿透道具")
-		quit(1)
-		return
-	var pierce_label := ""
-	var pierce_color := Color.BLACK
-	for child in pierce_vis.get_children():
-		if child is Label:
-			pierce_label = str(child.text)
-		if child is Polygon2D and pierce_color == Color.BLACK:
-			pierce_color = (child as Polygon2D).color
-	if pierce_label != "P":
-		push_error("[verify_pu] 失败：穿透标签是 %s" % pierce_label)
-		quit(1)
-		return
-	if pierce_color.r < 0.8 or pierce_color.g < 0.6 or pierce_color.b > 0.4:
-		push_error("[verify_pu] 失败：穿透颜色不是金色 %s" % pierce_color)
-		quit(1)
-		return
-	pierce_vis.queue_free()
-	print("[verify_pu] 穿透外观通过")
+	var icon_specs: Array = [
+		[game.PKind.BOMB, "powerup_bomb.png", "蓝"],
+		[game.PKind.RANGE, "powerup_range.png", "红"],
+		[game.PKind.SPEED, "powerup_speed.png", "青"],
+		[game.PKind.KICK, "powerup_kick.png", "紫"],
+		[game.PKind.PIERCE, "powerup_pierce.png", "黄"],
+	]
+	for spec in icon_specs:
+		var ikind: int = int(spec[0])
+		var fname: String = str(spec[1])
+		var tag: String = str(spec[2])
+		var vid: int = 4200 + ikind
+		game._spawn_powerup_visual(vid, soft, ikind)
+		var vis: Node = game.powerups_layer.get_node_or_null("Powerup_%d" % vid)
+		if vis == null:
+			push_error("[verify_pu] 失败：看不到%s道具" % tag)
+			quit(1)
+			return
+		if not _assert_powerup_icon(vis, fname, ikind):
+			quit(1)
+			return
+		vis.queue_free()
+	print("[verify_pu] 五种像素图标通过")
 
 	# 走上去捡起道具。
 	game.player_nodes[pid].set_meta("cell", soft)
@@ -182,3 +182,60 @@ func _run() -> void:
 	print("[verify_pu] 再来一局重置通过")
 	print("[verify_pu] 成功")
 	quit(0)
+
+
+func _assert_powerup_icon(vis: Node, fname: String, ikind: int) -> bool:
+	for child in vis.get_children():
+		if child is Polygon2D or child is Label:
+			push_error("[verify_pu] 失败：%s 仍是色块或字母" % fname)
+			return false
+	var icon := vis.get_node_or_null("Icon")
+	if icon == null or not (icon is Sprite2D):
+		push_error("[verify_pu] 失败：%s 没有 Icon 精灵" % fname)
+		return false
+	var spr := icon as Sprite2D
+	if not spr.centered or spr.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
+		push_error("[verify_pu] 失败：%s 不是居中就近采样" % fname)
+		return false
+	if spr.texture == null or spr.texture.get_width() != 48 or spr.texture.get_height() != 48:
+		push_error("[verify_pu] 失败：%s 贴图不是 48x48" % fname)
+		return false
+	var path := str(spr.texture.resource_path)
+	if not path.ends_with(fname):
+		push_error("[verify_pu] 失败：%s 贴图路径是 %s" % [fname, path])
+		return false
+	var img := spr.texture.get_image()
+	if img == null:
+		push_error("[verify_pu] 失败：%s 读不出像素" % fname)
+		return false
+	var hits := 0
+	var opaque := 0
+	for y in range(0, img.get_height(), 2):
+		for x in range(0, img.get_width(), 2):
+			var c: Color = img.get_pixel(x, y)
+			if c.a < 0.9:
+				if c.a > 0.05:
+					push_error("[verify_pu] 失败：%s 有半透明像素" % fname)
+					return false
+				continue
+			opaque += 1
+			if _pixel_matches_kind(c, ikind):
+				hits += 1
+	if opaque < 30 or hits < 6:
+		push_error("[verify_pu] 失败：%s 主色不够（不透明 %d 命中 %d）" % [fname, opaque, hits])
+		return false
+	return true
+
+
+func _pixel_matches_kind(c: Color, ikind: int) -> bool:
+	match ikind:
+		0:
+			return c.b > 0.55 and c.b > c.r + 0.2 and c.g < 0.85
+		1:
+			return c.r > 0.7 and c.g < 0.65 and c.b < 0.35
+		2:
+			return c.g > 0.55 and c.b > 0.55 and c.r < 0.45
+		3:
+			return c.r > 0.35 and c.b > 0.45 and c.g < 0.55 and c.b > c.g
+		_:
+			return c.r > 0.75 and c.g > 0.45 and c.b < 0.45

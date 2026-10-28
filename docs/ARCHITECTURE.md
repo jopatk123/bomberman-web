@@ -16,7 +16,7 @@
 | `scripts/match/` | **纯逻辑**模块（`RefCounted` / `class_name`）：爆炸规则、突然死亡、踢炸弹、地图生成等 | 节点树、`rpc`、UI 控件 |
 | `scripts/`（根下） | 场景编排与表现：`game_root.gd`、`lobby.gd`、`player.gd`、`bomb.gd`、`powerup.gd` | 大段可抽离的规则算法 |
 | `scenes/` | `.tscn` 场景与节点布局 | 业务规则（规则写脚本） |
-| `assets/` | 字体、主题、贴图、音频。像素街机在 `assets/art/pixel/`；芯片乐在 `assets/audio/`（出处见 `CREDITS.md`） | 逻辑代码 |
+| `assets/` | 字体、主题、贴图、音频。像素街机在 `assets/art/pixel/`；音频在 `assets/audio/`（BGM 为 SA3，sfx 为芯片；见 `CREDITS.md`） | 逻辑代码 |
 | `deploy/` | Docker / nginx / systemd | 游戏逻辑 |
 | `scripts/verify_*.gd` | headless 冒烟（`-s`） | 正式运行入口 |
 | `docs/` | 架构与设计说明 | — |
@@ -118,7 +118,7 @@ autoload Net / GameState / Audio   ← 连接、大厅快照、播放
 - 软墙被炸开或被火圈清掉时，只重绘变化的格子，不重建整张地图
 - 炸弹数 HUD 在放置、爆炸、吞弹、捡道具时刷新，不在每帧重写 Label
 - 客机移动先按本地格子预演，放炸弹先放一个影子；主机格子对不上时拉回。踢弹不预演，等主机把炸弹推走再对齐
-- 音乐和音效走 autoload `Audio`（`Music` / `Sfx` 总线，BGM 淡入淡出，音效可重叠）。大厅、对局、突然死亡、胜负短句都在 `assets/audio/`，大调轻快芯片乐，缩圈也不换成压抑告警。浏览器要等第一次点击或按键才出声。静音开关写在 `user://audio.cfg`。无界面时播放接口直接返回，不播声
+- 音乐和音效走 autoload `Audio`（`Music` / `Sfx` 总线，BGM 淡入淡出，音效可重叠）。大厅、对局、突然死亡、胜负短句都在 `assets/audio/bgm/`（现为 SA3 明亮街机曲），缩圈也不换成压抑告警。浏览器要等第一次点击或按键才出声。静音开关写在 `user://audio.cfg`。无界面时播放接口直接返回，不播声
 
 ## 改动检查清单（PR / 提交前）
 

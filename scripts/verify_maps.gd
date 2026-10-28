@@ -88,7 +88,17 @@ func _test_layouts_differ() -> bool:
 	for id in range(4):
 		grids[id] = Arena.build_base_grid(id)
 		counts[id] = _count_hard(grids[id])
-	# 开阔图硬墙应最少（只有围边：13*2 + 11*2 - 4 个角 = 44）。
+	if Arena.COLS != 15 or Arena.ROWS != 13:
+		return _fail("场地应为 15×13，实际 %d×%d" % [Arena.COLS, Arena.ROWS])
+	var spawns := Arena.spawn_cells()
+	if spawns.size() != 4 or spawns[0] != Vector2i(1, 1) or spawns[1] != Vector2i(Arena.COLS - 2, 1):
+		return _fail("四角出生点不对 %s" % str(spawns))
+	if spawns[2] != Vector2i(1, Arena.ROWS - 2) or spawns[3] != Vector2i(Arena.COLS - 2, Arena.ROWS - 2):
+		return _fail("下排出生点不对 %s" % str(spawns))
+	# 开阔图只有单层围边。
+	var border := Arena.COLS * 2 + Arena.ROWS * 2 - 4
+	if counts[1] != border:
+		return _fail("开阔图硬墙应等于围边 %d，实际 %d" % [border, counts[1]])
 	if counts[1] >= counts[0]:
 		return _fail("开阔图硬墙应少于经典（%d 对 %d）" % [counts[1], counts[0]])
 	if counts[2] <= counts[0]:

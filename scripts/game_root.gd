@@ -15,8 +15,8 @@ extends Node2D
 ## ClientPredict 存本地移动链和影子炸弹。
 
 const TILE := 48
-const COLS := 13
-const ROWS := 11
+const COLS := Arena.COLS
+const ROWS := Arena.ROWS
 const BOMB_FUSE := 2.0
 const BASE_BLAST := 2
 const BASE_BOMBS := 1

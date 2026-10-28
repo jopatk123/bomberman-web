@@ -3,6 +3,7 @@
 
 只用方波、三角波和噪声。循环是整数小节，接缝处做很短的等功率交叉淡化，
 让前后采样挨在一起，而不是硬切一刀。
+大厅、对局、缩圈都是大调、明亮、轻快的街机底，不走小调压迫感。
 在仓库根目录运行：python3 tools/gen_audio.py
 """
 
@@ -158,129 +159,135 @@ def _normalize(x: list, peak_target: float) -> list:
     return [max(-1.0, min(1.0, s * g)) for s in x]
 
 
-def add_eighths(events: list, notes: list, kind: str, amp: float, duty: float) -> None:
-    step = 0.5
+def quarter(bpm: float) -> float:
+    return 60.0 / bpm
+
+
+def add_melody_at(events: list, notes: list, bpm: float, kind: str, amp: float, duty: float) -> None:
+    step = quarter(bpm) / 2.0
     for i, midi in enumerate(notes):
         if midi < 0:
             continue
-        events.append((i * step, step * 0.96, midi, kind, amp, duty))
+        events.append((i * step, step * 0.92, midi, kind, amp, duty))
 
 
-def add_bar_pads(events: list, roots: list, amp: float) -> None:
+def add_bouncy_bass(events: list, roots: list, bpm: float, amp: float) -> None:
+    """根音和纯五度交替，大调，不往低音砸。"""
+    q = quarter(bpm)
+    step = q / 2.0
+    for b, root in enumerate(roots):
+        pattern = [root, root + 7, root, root + 7, root, root + 7, root + 12, root + 7]
+        for i, midi in enumerate(pattern):
+            events.append((b * q * 4.0 + i * step, step * 0.86, midi, "tri", amp, 0.5))
+
+
+def add_sunny_pads(events: list, roots: list, bpm: float, amp: float) -> None:
+    q = quarter(bpm)
+    bar = q * 4.0
     for i, root in enumerate(roots):
-        events.append((i * 4.0, 3.55, root, "tri", amp, 0.5))
-        events.append((i * 4.0, 3.55, root + 7, "tri", amp * 0.42, 0.5))
+        events.append((i * bar, bar * 0.92, root + 12, "tri", amp, 0.5))
+        events.append((i * bar, bar * 0.92, root + 12 + 4, "tri", amp * 0.55, 0.5))
+        events.append((i * bar, bar * 0.92, root + 12 + 7, "tri", amp * 0.42, 0.5))
 
 
-def add_arp_bass(events: list, chords: list, amp: float) -> None:
-    for b, (root, third, fifth) in enumerate(chords):
-        seq = [root, root, root, fifth, root, root, third, fifth]
-        for i, midi in enumerate(seq):
-            events.append((b * 4.0 + i * 0.5, 0.44, midi, "tri", amp, 0.5))
-
-
-def add_backbeat(events: list, bars: int, amp: float) -> None:
-    for bar in range(bars):
-        for off in (1.0, 3.0):
-            events.append((bar * 4.0 + off, 0.09, 0, "noise", amp, 0.5))
-
-
-def add_eighth_hats(events: list, bars: int, quiet: float, accent: float) -> None:
-    count = bars * 8
-    for i in range(count):
+def add_chip_hats(events: list, bars: int, bpm: float, quiet: float, accent: float) -> None:
+    step = quarter(bpm) / 2.0
+    for i in range(bars * 8):
         amp = accent if i % 4 == 2 else quiet
-        events.append((i * 0.5, 0.07, 0, "noise", amp, 0.5))
+        events.append((i * step, 0.04, 0, "noise", amp, 0.5))
+
+
+def loop_seconds(bars: int, bpm: float) -> float:
+    return bars * 4.0 * quarter(bpm)
 
 
 def lobby_events() -> list:
-    # A 小调五声，8 小节，留白多一点。
+    # C 大调，8 小节，116 BPM。上行多，落在主音。
     melody = [
-        -1, 64, 67, 69, -1, 67, 64, -1,
-        72, 69, 67, 64, 67, -1, 64, -1,
-        69, 72, 74, 72, 69, 67, 64, -1,
-        67, 64, 62, 64, 60, -1, -1, -1,
-        -1, 64, 67, 69, 72, 69, 67, -1,
-        74, 72, 69, 67, 64, -1, 67, -1,
-        69, 67, 64, 67, 69, 72, 69, 67,
-        64, 62, 60, 62, 69, -1, -1, -1,
+        72, 76, 79, 76, 74, 76, 72, 67,
+        72, 74, 76, 79, 76, 74, 72, 76,
+        79, 76, 74, 72, 74, 76, 79, 81,
+        79, 76, 74, 72, 67, 72, 76, 72,
+        72, 76, 79, 81, 79, 76, 74, 72,
+        74, 76, 79, 76, 74, 72, 71, 72,
+        76, 79, 76, 74, 72, 74, 76, 79,
+        76, 74, 72, 71, 72, 76, 79, 72,
     ]
-    # Am Am F C | Am F C Am（A 小、A 小、F、C，再来一轮收在 A 小）
-    roots = [45, 45, 41, 48, 45, 41, 48, 45]
+    # C G F C | F C G C，全是大三和弦的根音。
+    roots = [48, 55, 53, 48, 53, 48, 55, 48]
     events: list = []
-    add_eighths(events, melody, "lead", 0.16, 0.5)
-    add_bar_pads(events, roots, 0.2)
-    add_backbeat(events, 8, 0.035)
+    add_melody_at(events, melody, 116.0, "lead", 0.2, 0.5)
+    add_sunny_pads(events, roots, 116.0, 0.11)
+    add_bouncy_bass(events, roots, 116.0, 0.16)
+    add_chip_hats(events, 8, 116.0, 0.02, 0.045)
     return events
 
 
-def match_chords() -> list:
-    # Am Am F E | Am F C E（前四小节落到 E，后四小节经 C 再落到 E）
-    return [
-        (45, 48, 52),
-        (45, 48, 52),
-        (41, 45, 48),
-        (40, 43, 47),
-        (45, 48, 52),
-        (41, 45, 48),
-        (48, 52, 55),
-        (40, 43, 47),
-    ]
-
-
 def match_melody() -> list:
+    # G 大调。连续八分音符，少休止，听着在往前跳。
     return [
-        69, 72, 76, 74, 72, 69, 67, 64,
-        64, 67, 69, 72, 69, 67, 64, 62,
-        69, 72, 74, 72, 69, 67, 69, 72,
-        64, 67, 69, 67, 64, 62, 64, 67,
-        72, 74, 76, 79, 76, 74, 72, 69,
-        69, 72, 74, 72, 69, 67, 64, 69,
-        67, 64, 67, 69, 72, 69, 67, 64,
-        64, 62, 64, 67, 69, 67, 64, -1,
+        67, 71, 74, 79, 76, 74, 71, 67,
+        74, 76, 79, 78, 79, 74, 71, 74,
+        72, 76, 79, 76, 74, 72, 71, 67,
+        71, 74, 76, 79, 76, 74, 71, 67,
+        79, 78, 76, 74, 76, 79, 81, 79,
+        74, 76, 79, 76, 74, 71, 67, 71,
+        72, 74, 76, 79, 76, 74, 72, 71,
+        67, 71, 74, 76, 79, 76, 74, 67,
     ]
 
 
 def match_events() -> list:
+    # G D C G | C G D G。128 BPM，比大厅跳，但仍是大调。
+    roots = [55, 50, 48, 55, 48, 55, 50, 55]
     events: list = []
-    add_eighths(events, match_melody(), "pulse", 0.15, 0.25)
-    add_arp_bass(events, match_chords(), 0.28)
-    add_eighth_hats(events, 8, 0.028, 0.055)
+    add_melody_at(events, match_melody(), 128.0, "lead", 0.18, 0.5)
+    add_sunny_pads(events, roots, 128.0, 0.09)
+    add_bouncy_bass(events, roots, 128.0, 0.15)
+    add_chip_hats(events, 8, 128.0, 0.022, 0.05)
     return events
 
 
 def sudden_events() -> list:
-    # 和对局相同的四小节动机，再加一声很轻的三全音告警。
+    # 和对局同一套大调和弦，再快一点，高音用大三度叠上去，不用不协和告警。
+    roots = [55, 50, 48, 55, 48, 55, 50, 55]
+    melody = match_melody()
     events: list = []
-    add_eighths(events, match_melody()[:32], "pulse", 0.15, 0.25)
-    add_arp_bass(events, match_chords()[:4], 0.3)
-    add_eighth_hats(events, 4, 0.04, 0.08)
-    for bar in range(4):
-        events.append((bar * 4.0, 0.07, 75, "pulse", 0.055, 0.125))
-        events.append((bar * 4.0 + 2.0, 0.05, 82, "pulse", 0.04, 0.125))
+    add_melody_at(events, melody, 138.0, "lead", 0.17, 0.5)
+    sparkle = [n + 4 if n >= 0 else -1 for n in melody]
+    add_melody_at(events, sparkle, 138.0, "lead", 0.06, 0.5)
+    add_sunny_pads(events, roots, 138.0, 0.08)
+    add_bouncy_bass(events, roots, 138.0, 0.14)
+    add_chip_hats(events, 8, 138.0, 0.028, 0.06)
     return events
 
 
 def win_events() -> list:
+    # C 大调上行，短、亮。
     events = []
     notes = [72, 76, 79, 84]
     for i, midi in enumerate(notes):
-        dur = 1.35 if i == len(notes) - 1 else 0.42
-        events.append((i * 0.38, dur, midi, "lead", 0.2, 0.5))
-        events.append((i * 0.38, dur, midi - 12, "tri", 0.12, 0.5))
-    events.append((0.0, 1.7, 48, "tri", 0.16, 0.5))
-    events.append((0.0, 1.7, 55, "tri", 0.08, 0.5))
+        dur = 0.7 if i == len(notes) - 1 else 0.16
+        events.append((i * 0.15, dur, midi, "lead", 0.22, 0.5))
+        events.append((i * 0.15, dur, midi - 12, "tri", 0.1, 0.5))
+    events.append((0.0, 1.15, 60, "tri", 0.12, 0.5))
+    events.append((0.0, 1.15, 64, "tri", 0.08, 0.5))
+    events.append((0.0, 1.15, 67, "tri", 0.06, 0.5))
     return events
 
 
 def lose_events() -> list:
+    # 还是往下走，但停在大调音级上，轻、短，不沉。
     events = []
-    notes = [69, 67, 64, 60, 57]
+    notes = [76, 74, 72, 67]
     t = 0.0
     for i, midi in enumerate(notes):
-        dur = 0.7 if i == len(notes) - 1 else 0.34
+        dur = 0.42 if i == len(notes) - 1 else 0.2
         events.append((t, dur, midi, "lead", 0.18, 0.5))
-        events.append((t, dur, midi - 12, "tri", 0.12, 0.5))
-        t += 0.32 if i < len(notes) - 1 else 0.0
+        events.append((t, dur, midi - 12, "tri", 0.08, 0.5))
+        t += 0.18
+    events.append((0.0, 0.95, 60, "tri", 0.1, 0.5))
+    events.append((0.0, 0.95, 64, "tri", 0.06, 0.5))
     return events
 
 
@@ -312,7 +319,8 @@ def boom() -> list:
     out = [0.0] * n
     for i in range(n):
         t = i / SR
-        freq = 160.0 * math.exp(-t * 11.0) + 42.0
+        # 底频抬高一点，爆炸仍是一声脆响，而不是闷雷。
+        freq = 220.0 * math.exp(-t * 12.0) + 78.0
         phase += freq / SR
         pulse = 1.0 if (phase % 1.0) < 0.5 else -1.0
         sine += (90.0 * math.exp(-t * 8.0) + 36.0) / SR
@@ -321,8 +329,8 @@ def boom() -> list:
         env_tone = math.exp(-t * 10.0)
         env_noise = math.exp(-t * 16.0)
         click = math.exp(-t * 90.0)
-        out[i] = 0.55 * env_tone * pulse + 0.7 * env_tone * thump + 0.48 * env_noise * nz + 0.25 * click * nz
-    return _edge_fade(_normalize(_lowpass(out, 0.45), 0.9), int(0.001 * SR), int(0.018 * SR))
+        out[i] = 0.42 * env_tone * pulse + 0.48 * env_tone * thump + 0.55 * env_noise * nz + 0.32 * click * nz
+    return _edge_fade(_normalize(_lowpass(out, 0.58), 0.9), int(0.001 * SR), int(0.018 * SR))
 
 
 def tone_blip(notes: list, step: float, dur: float, amp: float, duty: float) -> list:
@@ -352,12 +360,13 @@ def place_bomb() -> list:
 
 
 def kick() -> list:
-    body = sweep(0.09, 280.0, 70.0, 0.9, 0.5, 0.15, 0x51C4)
+    body = sweep(0.08, 420.0, 140.0, 0.85, 0.5, 0.12, 0x51C4)
     return body
 
 
 def death() -> list:
-    return tone_blip([69, 65, 60, 53], 0.07, 0.11, 0.7, 0.25)
+    # 下行，但停在比较亮的音区。
+    return tone_blip([81, 76, 72, 67], 0.06, 0.09, 0.65, 0.5)
 
 
 def pickup() -> list:
@@ -433,11 +442,11 @@ def emit(rel: str, samples: list, quality: int) -> None:
 
 def main() -> None:
     beds = [
-        ("bgm/lobby.ogg", render_events(lobby_events(), 32 * 60 / 96.0, 11, 0.22, True), 3),
-        ("bgm/match.ogg", render_events(match_events(), 32 * 60 / 128.0, 22, 0.3, True), 3),
-        ("bgm/sudden_death.ogg", render_events(sudden_events(), 16 * 60 / 160.0, 33, 0.34, True), 3),
-        ("bgm/win.ogg", render_events(win_events(), 1.85, 44, 0.24, False), 4),
-        ("bgm/lose.ogg", render_events(lose_events(), 2.05, 55, 0.22, False), 4),
+        ("bgm/lobby.ogg", render_events(lobby_events(), loop_seconds(8, 116.0), 11, 0.46, True), 4),
+        ("bgm/match.ogg", render_events(match_events(), loop_seconds(8, 128.0), 22, 0.5, True), 4),
+        ("bgm/sudden_death.ogg", render_events(sudden_events(), loop_seconds(8, 138.0), 33, 0.52, True), 4),
+        ("bgm/win.ogg", render_events(win_events(), 1.2, 44, 0.48, False), 4),
+        ("bgm/lose.ogg", render_events(lose_events(), 1.05, 55, 0.46, False), 4),
         ("sfx/place_bomb.ogg", place_bomb(), 2),
         ("sfx/boom.ogg", boom(), 3),
         ("sfx/kick.ogg", kick(), 2),

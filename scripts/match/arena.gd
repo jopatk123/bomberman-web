@@ -1,10 +1,11 @@
 class_name Arena
 extends RefCounted
-## 经典 13×11 场地：硬墙围边、四角出生点，软墙按种子铺。
+## 经典 15×13 场地：硬墙围边各向外一格，四角出生点，软墙按种子铺。
 ## 纯数据，没有节点。格子取值与 BlastRules / game_root 的 Cell 枚举一致。
+## 软墙仍按 SOFT_CHANCE 铺在变大后的空地上，出生点及正交邻格保持空着。
 
-const COLS := 13
-const ROWS := 11
+const COLS := 15
+const ROWS := 13
 const CELL_EMPTY := 0
 const CELL_HARD := 1
 const CELL_SOFT := 2
@@ -168,7 +169,7 @@ static func _classic_grid() -> Array:
 
 
 ## 经典柱阵，再加上正中一行一列的十字硬墙。
-## 每边留出 3 格走廊，四角仍然互相走得到。
+## 靠四边各留出一段 3 格缺口，四角仍然互相走得到。
 static func _cross_grid() -> Array:
 	var grid := _classic_grid()
 	var keep_clear := spawn_clear_cells()
@@ -182,11 +183,15 @@ static func _cross_grid() -> Array:
 		var c := Vector2i(mid_x, y)
 		if not keep_clear.has(c):
 			grid[y][mid_x] = CELL_HARD
+	var y_top := 2
+	var y_bot := ROWS - 3
+	var x_left := 2
+	var x_right := COLS - 3
 	var clear_cells: Array[Vector2i] = [
-		Vector2i(mid_x, 2), Vector2i(mid_x - 1, 2), Vector2i(mid_x + 1, 2),
-		Vector2i(mid_x, 8), Vector2i(mid_x - 1, 8), Vector2i(mid_x + 1, 8),
-		Vector2i(2, mid_y), Vector2i(2, mid_y - 1), Vector2i(2, mid_y + 1),
-		Vector2i(10, mid_y), Vector2i(10, mid_y - 1), Vector2i(10, mid_y + 1),
+		Vector2i(mid_x, y_top), Vector2i(mid_x - 1, y_top), Vector2i(mid_x + 1, y_top),
+		Vector2i(mid_x, y_bot), Vector2i(mid_x - 1, y_bot), Vector2i(mid_x + 1, y_bot),
+		Vector2i(x_left, mid_y), Vector2i(x_left, mid_y - 1), Vector2i(x_left, mid_y + 1),
+		Vector2i(x_right, mid_y), Vector2i(x_right, mid_y - 1), Vector2i(x_right, mid_y + 1),
 	]
 	for c in clear_cells:
 		if c.x <= 0 or c.y <= 0 or c.x >= COLS - 1 or c.y >= ROWS - 1:
@@ -201,13 +206,14 @@ static func _cross_grid() -> Array:
 static func _maze_grid() -> Array:
 	var grid := _classic_grid()
 	var keep_clear := spawn_clear_cells()
-	# 柱子之间额外堵上硬墙（y=2/5/8 和 x=6 的通道留空）。
+	# 外扩一圈后，堵墙相对旧 13×11 各 +1，迷宫仍居中。
+	# y=3/6/9 和 x=7 的通道留空，外圈出生走廊不堵。
 	var extra: Array[Vector2i] = [
-		Vector2i(3, 3), Vector2i(3, 4), Vector2i(3, 6), Vector2i(3, 7),
-		Vector2i(9, 3), Vector2i(9, 4), Vector2i(9, 6), Vector2i(9, 7),
-		Vector2i(5, 3), Vector2i(7, 3), Vector2i(5, 7), Vector2i(7, 7),
-		Vector2i(4, 5), Vector2i(8, 5), Vector2i(5, 4), Vector2i(7, 4),
-		Vector2i(5, 6), Vector2i(7, 6),
+		Vector2i(4, 4), Vector2i(4, 5), Vector2i(4, 7), Vector2i(4, 8),
+		Vector2i(10, 4), Vector2i(10, 5), Vector2i(10, 7), Vector2i(10, 8),
+		Vector2i(6, 4), Vector2i(8, 4), Vector2i(6, 8), Vector2i(8, 8),
+		Vector2i(5, 6), Vector2i(9, 6), Vector2i(6, 5), Vector2i(8, 5),
+		Vector2i(6, 7), Vector2i(8, 7),
 	]
 	for c in extra:
 		if keep_clear.has(c):

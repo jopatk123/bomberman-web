@@ -66,7 +66,7 @@ autoload Net / GameState / Audio   ← 连接、大厅快照、播放
 
 ## 已有 match 模块
 
-- `Arena` — 13×11 多地图硬墙布局 + 软墙种子。`MapId`：经典 / 开阔 / 十字 / 迷宫；`build_base_grid` / `build_match_grid(map_id, soft_seed)`；同 `map_id+soft_seed` 软墙一致；四角出生及正交邻格永不硬墙/软墙
+- `Arena` — 15×13 多地图硬墙布局 + 软墙种子。外边硬墙框比旧 13×11 各外扩一格，仍是单层围边。`MapId`：经典 / 开阔 / 十字 / 迷宫；`build_base_grid` / `build_match_grid(map_id, soft_seed)`；同 `map_id+soft_seed` 软墙一致；四角出生及正交邻格永不硬墙/软墙
 - `BlastRules` — 爆炸射线、软墙清除打包。`compute_rays(..., pierce=false)`：软墙被命中并清除；未穿透时射线停在软墙，穿透时继续，直到射程用尽或碰到硬墙。硬墙始终挡住射线，格子本身不被命中
 - `SuddenDeath` — 90s 后首次缩圈致死格，之后每 `INTERVAL`（15s）向内一圈。各端只前进 `elapsed` 做倒计时；致死格只由主机 `tick` 扩展
 - `KickRules` — 穿弹 / 踢弹判定、滑行阻挡。踢进已有火圈由 `game_root` 立即引爆，走进这场爆炸的人会阵亡；缩圈盖住的炸弹被吞掉，不额外爆炸
@@ -118,7 +118,7 @@ autoload Net / GameState / Audio   ← 连接、大厅快照、播放
 - 软墙被炸开或被火圈清掉时，只重绘变化的格子，不重建整张地图
 - 炸弹数 HUD 在放置、爆炸、吞弹、捡道具时刷新，不在每帧重写 Label
 - 客机移动先按本地格子预演，放炸弹先放一个影子；主机格子对不上时拉回。踢弹不预演，等主机把炸弹推走再对齐
-- 音乐和音效走 autoload `Audio`（`Music` / `Sfx` 总线，BGM 淡入淡出，音效可重叠）。大厅循环、对局、突然死亡、胜负短句都在 `assets/audio/`。浏览器要等第一次点击或按键才出声。静音开关写在 `user://audio.cfg`。无界面时播放接口直接返回，不播声
+- 音乐和音效走 autoload `Audio`（`Music` / `Sfx` 总线，BGM 淡入淡出，音效可重叠）。大厅、对局、突然死亡、胜负短句都在 `assets/audio/`，大调轻快芯片乐，缩圈也不换成压抑告警。浏览器要等第一次点击或按键才出声。静音开关写在 `user://audio.cfg`。无界面时播放接口直接返回，不播声
 
 ## 改动检查清单（PR / 提交前）
 

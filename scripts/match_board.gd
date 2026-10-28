@@ -6,6 +6,11 @@ extends RefCounted
 
 
 const TILE := 48
+const VIEW_W := 960.0
+## 顶栏（状态、属性）底边。第一排可走格要露在这下面。
+const HUD_CLEAR_TOP := 70.0
+## 底栏帮助文字上沿。棋盘底边不要压住它。
+const HUD_CLEAR_BOTTOM := 676.0
 const TEX_FLOOR_A: Texture2D = preload("res://assets/art/pixel/tiles/floor_a.png")
 const TEX_FLOOR_B: Texture2D = preload("res://assets/art/pixel/tiles/floor_b.png")
 const TEX_HARD: Texture2D = preload("res://assets/art/pixel/tiles/hard.png")
@@ -29,8 +34,8 @@ var map_layer: Node2D
 var entities: Node2D
 var powerups_layer: Node2D
 var fx_layer: Node2D
-var cols: int = 13
-var rows: int = 11
+var cols: int = Arena.COLS
+var rows: int = Arena.ROWS
 var map_sprites: Array = []
 var sd_visuals: Dictionary = {}
 
@@ -42,6 +47,19 @@ func bind(map: Node2D, ents: Node2D, drops: Node2D, fx: Node2D, grid_cols: int, 
 	fx_layer = fx
 	cols = grid_cols
 	rows = grid_rows
+
+
+## 水平居中。竖直让可走区躲开顶栏，底边留出帮助文字。
+static func board_origin(grid_cols: int, grid_rows: int) -> Vector2:
+	var map_w := float(grid_cols * TILE)
+	var map_h := float(grid_rows * TILE)
+	var x := (VIEW_W - map_w) * 0.5
+	var y := HUD_CLEAR_TOP - float(TILE)
+	if y + map_h > HUD_CLEAR_BOTTOM:
+		y = HUD_CLEAR_BOTTOM - map_h
+	if y < 0.0:
+		y = 0.0
+	return Vector2(x, y)
 
 
 func cell_to_pos(cell: Vector2i) -> Vector2:
@@ -69,9 +87,7 @@ func draw_map(grid: Array, host: Node2D) -> void:
 			map_layer.add_child(spr)
 			row.append(spr)
 		map_sprites.append(row)
-	var map_w := cols * TILE
-	var map_h := rows * TILE
-	host.position = Vector2((960 - map_w) * 0.5, (720 - map_h) * 0.5 - 20)
+	host.position = board_origin(cols, rows)
 
 
 func repaint_cells(grid: Array, cells: Array, host: Node2D) -> void:

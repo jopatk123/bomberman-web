@@ -1,5 +1,5 @@
 extends SceneTree
-## 无界面：定时空投的时刻、合法格、没空格跳过、再来一局重置，以及场景上的预告节点。
+## 无界面：定时空投的时刻、合法格、没空格跳过、再来一局重置，以及场景上的像素预告。
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -276,8 +276,16 @@ func _scene() -> bool:
 	if absf(game.airdrop.elapsed) > 0.001 or absf(game.airdrop.next_land_at - 15.0) > 0.001:
 		return _fail("开局空投时钟不是 0 / 15")
 	game._tick_airdrop(13.5)
-	if game.fx_layer.get_node_or_null("AirdropMark") == null:
-		return _fail("13.5 秒没有预告标记")
+	var mark: Node = game.fx_layer.get_node_or_null("AirdropMark")
+	if mark == null or not (mark is Sprite2D):
+		return _fail("13.5 秒没有像素预告")
+	var mark_spr := mark as Sprite2D
+	if mark_spr.texture == null or mark_spr.texture.get_width() != 48 or mark_spr.texture.get_height() != 48:
+		return _fail("预告贴图不是 48×48")
+	if mark_spr.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
+		return _fail("预告不是就近采样")
+	if mark_spr.get_child_count() != 0:
+		return _fail("预告仍套着色块")
 	if not game.powerups.is_empty():
 		return _fail("预告时场上不该有空投道具")
 	game._tick_airdrop(1.5)

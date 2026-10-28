@@ -95,6 +95,27 @@ func _run() -> void:
 		quit(1)
 		return
 	print("[verify] 对局实例：", game.name, " 列=", game.COLS, " 行=", game.ROWS)
+	if int(game.COLS) != 15 or int(game.ROWS) != 13 or int(game.COLS) != Arena.COLS or int(game.ROWS) != Arena.ROWS:
+		push_error("[verify] 失败：棋盘应为 15×13")
+		quit(1)
+		return
+	var origin: Vector2 = game.position
+	var playable_top := origin.y + 48.0
+	var map_right := origin.x + float(game.COLS) * 48.0
+	var map_bottom := origin.y + float(game.ROWS) * 48.0
+	if playable_top < 66.0 or map_bottom > 678.0:
+		push_error("[verify] 失败：棋盘压到顶栏或底栏 origin=%s" % origin)
+		quit(1)
+		return
+	if absf(origin.x - (960.0 - float(game.COLS) * 48.0) * 0.5) > 1.0:
+		push_error("[verify] 失败：棋盘没有水平居中")
+		quit(1)
+		return
+	var back := game.get_node_or_null("HUD/BackBtn") as Control
+	if back != null and back.offset_left < map_right - 2.0:
+		push_error("[verify] 失败：返回按钮盖住棋盘")
+		quit(1)
+		return
 	game.queue_free()
 
 	var tile_paths := [

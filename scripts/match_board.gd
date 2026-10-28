@@ -6,6 +6,11 @@ extends RefCounted
 
 
 const TILE := 48
+const VIEW_W := 960.0
+## 顶栏（状态、属性）底边。第一排可走格要露在这下面。
+const HUD_CLEAR_TOP := 70.0
+## 底栏帮助文字上沿。棋盘底边不要压住它。
+const HUD_CLEAR_BOTTOM := 676.0
 const TEX_FLOOR_A: Texture2D = preload("res://assets/art/pixel/tiles/floor_a.png")
 const TEX_FLOOR_B: Texture2D = preload("res://assets/art/pixel/tiles/floor_b.png")
 const TEX_HARD: Texture2D = preload("res://assets/art/pixel/tiles/hard.png")
@@ -29,8 +34,8 @@ var map_layer: Node2D
 var entities: Node2D
 var powerups_layer: Node2D
 var fx_layer: Node2D
-var cols: int = 13
-var rows: int = 11
+var cols: int = Arena.COLS
+var rows: int = Arena.ROWS
 var map_sprites: Array = []
 var sd_visuals: Dictionary = {}
 
@@ -42,6 +47,19 @@ func bind(map: Node2D, ents: Node2D, drops: Node2D, fx: Node2D, grid_cols: int, 
 	fx_layer = fx
 	cols = grid_cols
 	rows = grid_rows
+
+
+## 水平居中。竖直让可走区躲开顶栏，底边留出帮助文字。
+static func board_origin(grid_cols: int, grid_rows: int) -> Vector2:
+	var map_w := float(grid_cols * TILE)
+	var map_h := float(grid_rows * TILE)
+	var x := (VIEW_W - map_w) * 0.5
+	var y := HUD_CLEAR_TOP - float(TILE)
+	if y + map_h > HUD_CLEAR_BOTTOM:
+		y = HUD_CLEAR_BOTTOM - map_h
+	if y < 0.0:
+		y = 0.0
+	return Vector2(x, y)
 
 
 func cell_to_pos(cell: Vector2i) -> Vector2:
@@ -69,9 +87,7 @@ func draw_map(grid: Array, host: Node2D) -> void:
 			map_layer.add_child(spr)
 			row.append(spr)
 		map_sprites.append(row)
-	var map_w := cols * TILE
-	var map_h := rows * TILE
-	host.position = Vector2((960 - map_w) * 0.5, (720 - map_h) * 0.5 - 20)
+	host.position = board_origin(cols, rows)
 
 
 func repaint_cells(grid: Array, cells: Array, host: Node2D) -> void:
@@ -293,6 +309,47 @@ func _loop_sd_pulse(spr: Sprite2D, phase: int) -> void:
 	timer.timeout.connect(func() -> void:
 		_loop_sd_pulse(spr, phase + 1)
 	)
+
+
+func show_airdrop_mark(cell: Vector2i) -> void:
+	clear_airdrop_mark()
+	if fx_layer == null:
+		return
+	var root := Node2D.new()
+	root.name = "AirdropMark"
+	root.z_index = 2
+	root.position = Vector2(cell.x * TILE, cell.y * TILE)
+	# 斜向阴影，再套一圈像素描边。
+	root.add_child(_px_rect(Vector2(8, 10), Vector2(34, 34), Color(0, 0, 0, 0.45)))
+	root.add_child(_px_rect(Vector2(6, 6), Vector2(36, 36), Color(0.1, 0.14, 0.22, 0.4)))
+	var edge := Color(1.0, 0.92, 0.42, 1.0)
+	root.add_child(_px_rect(Vector2(4, 4), Vector2(40, 2), edge))
+	root.add_child(_px_rect(Vector2(4, 42), Vector2(40, 2), edge))
+	root.add_child(_px_rect(Vector2(4, 4), Vector2(2, 40), edge))
+	root.add_child(_px_rect(Vector2(42, 4), Vector2(2, 40), edge))
+	fx_layer.add_child(root)
+	if root.is_inside_tree():
+		var tw := root.create_tween()
+		tw.set_loops(0)
+		tw.tween_property(root, "modulate:a", 0.45, 0.28)
+		tw.tween_property(root, "modulate:a", 1.0, 0.28)
+
+
+func clear_airdrop_mark() -> void:
+	if fx_layer == null:
+		return
+	var n := fx_layer.get_node_or_null("AirdropMark")
+	if n:
+		n.free()
+
+
+func _px_rect(pos: Vector2, size: Vector2, color: Color) -> ColorRect:
+	var rect := ColorRect.new()
+	rect.position = pos
+	rect.size = size
+	rect.color = color
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rect
 
 
 func clear_sudden_death() -> void:

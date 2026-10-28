@@ -6,6 +6,7 @@ extends Node2D
 ## PlayerStats — 上限、拾取、属性包。
 ## BombRecord — 炸弹字典的字段形状。
 ## PowerupDrop — 软墙掉落。
+## Airdrop — 定时空投。15 秒首投，之后每 10 秒一件；预告和落点筛选在模块里。
 ## MatchEnd — 胜负、平局、再来一局、弃权判定。
 ## MatchSession — 离开、被踢、断线、弃权落地、专用服空房。
 ## BlastRules / SuddenDeath / KickRules / Arena / MatchBot / MatchFill / MovePredict — 职责同架构说明。
@@ -14,8 +15,8 @@ extends Node2D
 ## ClientPredict 存本地移动链和影子炸弹。
 
 const TILE := 48
-const COLS := 13
-const ROWS := 11
+const COLS := Arena.COLS
+const ROWS := Arena.ROWS
 const BOMB_FUSE := 2.0
 const BASE_BLAST := 2
 const BASE_BOMBS := 1
@@ -62,6 +63,7 @@ var match_over: bool = false
 ## 客户端输入冷却；服务器也按人记 move_cd。
 var _local_move_cd: float = 0.0
 var sudden: SuddenDeath = SuddenDeath.new()
+var airdrop: Airdrop = Airdrop.new()
 ## 这一步里被爆炸扫到的格子。踩进去就会死。
 var _blast_hits: Array[Vector2i] = []
 ## 倒计时窗口里，距下次权威时钟同步还有多少秒。
@@ -135,6 +137,7 @@ func _process(delta: float) -> void:
 			_tick_bomb_slides(delta)
 			_tick_bombs(delta)
 			_tick_sudden_death(delta)
+			_tick_airdrop(delta)
 			_kill_players_on_lethal()
 			_sync_match_clock(delta)
 			_tick_bot(delta)
@@ -295,7 +298,9 @@ func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) ->
 	match_over = false
 	_hud.hide_end()
 	sudden.reset()
+	airdrop.reset()
 	_clear_sd_visuals()
+	_board.clear_airdrop_mark()
 	_clear_powerups()
 	_clear_bomb_visuals()
 	bombs.clear()
@@ -711,14 +716,7 @@ func _rpc_bomb_boom(bid: int, hit_xy: PackedInt32Array, clear_xy: PackedInt32Arr
 	var cleared_soft: Array[Vector2i] = BlastRules.packed_to_cells(clear_xy)
 	_apply_boom_visual(bid, hit_cells, cleared_soft)
 	_repaint_cells(cleared_soft)
-	for i in range(0, spawn_xy.size(), 4):
-		var pid: int = spawn_xy[i]
-		var px: int = spawn_xy[i + 1]
-		var py: int = spawn_xy[i + 2]
-		var pk: int = spawn_xy[i + 3]
-		if not powerups.has(pid):
-			powerups[pid] = {"x": px, "y": py, "kind": pk}
-		_spawn_powerup_visual(pid, Vector2i(px, py), pk)
+	_apply_spawn_pack(spawn_xy)
 	if not Net.is_authority():
 		var just_spawned: Dictionary = {}
 		for i in range(0, spawn_xy.size(), 4):
@@ -762,6 +760,71 @@ func _apply_boom_visual(bid: int, hit_cells: Array[Vector2i], cleared_soft: Arra
 
 func _spawn_powerup_visual(pid: int, cell: Vector2i, kind: int) -> void:
 	_board.spawn_powerup(pid, cell, kind)
+
+
+func _apply_spawn_pack(spawn_xy: PackedInt32Array) -> void:
+	for i in range(0, spawn_xy.size(), 4):
+		var pid: int = spawn_xy[i]
+		var px: int = spawn_xy[i + 1]
+		var py: int = spawn_xy[i + 2]
+		var pk: int = spawn_xy[i + 3]
+		if not powerups.has(pid):
+			powerups[pid] = {"x": px, "y": py, "kind": pk}
+		_spawn_powerup_visual(pid, Vector2i(px, py), pk)
+
+
+## 缩圈之后仍然继续。落点由 Airdrop 保证不是致死格；没有合法格就跳过这一轮。
+func _tick_airdrop(delta: float) -> void:
+	if not Net.is_authority() or match_over:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var ev: Dictionary = airdrop.tick(delta, {
+		"grid": grid,
+		"cols": COLS,
+		"rows": ROWS,
+		"bombs": bombs,
+		"powerups": powerups,
+		"lethal": sudden.lethal,
+		"next_id": next_powerup_id,
+	}, rng)
+	var landed: Dictionary = ev.get("land", {})
+	var warned: Dictionary = ev.get("warn", {})
+	if not landed.is_empty():
+		next_powerup_id = int(ev.get("next_id", next_powerup_id))
+		_notify_room("_rpc_airdrop_land", [PowerupDrop.pack([landed])])
+		_pickup_airdrop_under_players(Vector2i(int(landed.x), int(landed.y)))
+	elif not warned.is_empty():
+		_notify_room("_rpc_airdrop_warn", [int(warned.x), int(warned.y)])
+	elif bool(ev.get("cancel", false)):
+		_notify_room("_rpc_airdrop_cancel", [])
+
+
+func _pickup_airdrop_under_players(cell: Vector2i) -> void:
+	for raw in player_nodes.keys():
+		var pid := int(raw)
+		if not alive.get(pid, false):
+			continue
+		var node: Node2D = player_nodes[pid]
+		if node.get_meta("cell") == cell:
+			_try_pickup_at(pid, cell)
+			return
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_airdrop_warn(x: int, y: int) -> void:
+	_board.show_airdrop_mark(Vector2i(x, y))
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_airdrop_cancel() -> void:
+	_board.clear_airdrop_mark()
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_airdrop_land(spawn_xy: PackedInt32Array) -> void:
+	_board.clear_airdrop_mark()
+	_apply_spawn_pack(spawn_xy)
 
 
 func _clear_powerups() -> void:
@@ -1002,6 +1065,7 @@ func _check_winner() -> void:
 
 
 func _show_end_screen(winner_name: String) -> void:
+	_board.clear_airdrop_mark()
 	_hud.show_end(winner_name)
 	_refresh_spectator_hud()
 	_refresh_rematch_button()
@@ -1063,7 +1127,9 @@ func _restart_match() -> void:
 	next_bomb_id = 1
 	next_powerup_id = 1
 	sudden.reset()
+	airdrop.reset()
 	_clear_sd_visuals()
+	_board.clear_airdrop_mark()
 	_clear_powerups()
 	_clear_bomb_visuals()
 	_init_all_stats()

@@ -295,6 +295,47 @@ func _loop_sd_pulse(spr: Sprite2D, phase: int) -> void:
 	)
 
 
+func show_airdrop_mark(cell: Vector2i) -> void:
+	clear_airdrop_mark()
+	if fx_layer == null:
+		return
+	var root := Node2D.new()
+	root.name = "AirdropMark"
+	root.z_index = 2
+	root.position = Vector2(cell.x * TILE, cell.y * TILE)
+	# 斜向阴影，再套一圈像素描边。
+	root.add_child(_px_rect(Vector2(8, 10), Vector2(34, 34), Color(0, 0, 0, 0.45)))
+	root.add_child(_px_rect(Vector2(6, 6), Vector2(36, 36), Color(0.1, 0.14, 0.22, 0.4)))
+	var edge := Color(1.0, 0.92, 0.42, 1.0)
+	root.add_child(_px_rect(Vector2(4, 4), Vector2(40, 2), edge))
+	root.add_child(_px_rect(Vector2(4, 42), Vector2(40, 2), edge))
+	root.add_child(_px_rect(Vector2(4, 4), Vector2(2, 40), edge))
+	root.add_child(_px_rect(Vector2(42, 4), Vector2(2, 40), edge))
+	fx_layer.add_child(root)
+	if root.is_inside_tree():
+		var tw := root.create_tween()
+		tw.set_loops(0)
+		tw.tween_property(root, "modulate:a", 0.45, 0.28)
+		tw.tween_property(root, "modulate:a", 1.0, 0.28)
+
+
+func clear_airdrop_mark() -> void:
+	if fx_layer == null:
+		return
+	var n := fx_layer.get_node_or_null("AirdropMark")
+	if n:
+		n.free()
+
+
+func _px_rect(pos: Vector2, size: Vector2, color: Color) -> ColorRect:
+	var rect := ColorRect.new()
+	rect.position = pos
+	rect.size = size
+	rect.color = color
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rect
+
+
 func clear_sudden_death() -> void:
 	for key in sd_visuals.keys():
 		var n: Node = sd_visuals[key]

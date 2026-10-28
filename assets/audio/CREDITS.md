@@ -2,7 +2,7 @@
 
 ## BGM（`bgm/*.ogg`）
 
-2026-10-29 起，大厅 / 对局 / 缩圈循环与胜负短句改用本机 **Stable Audio 3 MLX**（`./sa3`，`sm-music` + `same-s`）生成的候选曲，再经 `ffmpeg`（libvorbis）压成 Ogg。源 wav / 预览与提示词见仓库旁目录 `_bgm_candidates/2026-10-29/`（已 gitignore，不入库）。
+2026-10-29 起，大厅 / 对局 / 缩圈循环与胜负短句改用本机 **Stable Audio 3 MLX**（`./sa3`，`sm-music` + `same-s`）生成的候选曲，再经 `ffmpeg`（libvorbis）压成 Ogg。源 wav / 预览与提示词见 `/workspace/_bgm_candidates_bomberman_2026-10-29/2026-10-29/`（勿放回工程树：gitignore 挡不住 `all_resources` 导出；`export_presets` 已 exclude `_bgm_candidates/*`）。
 
 | 文件 | 候选源 | 内容 | 备注 |
 |------|--------|------|------|

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# 把已经导出的 build/web 打成 B 站小玩具可上传的 zip。
-# 用法：
+# 把已经导出的 Web 目录打成 B 站小玩具可上传的 zip。
+# 正式上线请用 Minimize 压缩流程：./tools/export_toy_minimized.sh
+# （或手动导出到 build/web-minimized 后设 TOY_WEB_SRC/TOY_WEB_DEST）。
+# 旧用法（未压缩，仅调试）：
 #   godot --headless --path . --export-release "Web" build/web/index.html
 #   ./tools/pack_toy.sh
 # 环境变量 TOY_PCK_AS_DATA=1：把 .pck 改成 .data，并在 GODOT_CONFIG 里写 mainPack。

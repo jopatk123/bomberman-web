@@ -10,6 +10,8 @@ func _run() -> void:
 	for n in [
 		"blast_center.png", "blast_h.png", "blast_v.png",
 		"soft_break_0.png", "soft_break_1.png", "soft_break_2.png",
+		"sd_hazard_0.png", "sd_hazard_1.png", "sd_hazard_2.png",
+		"airdrop_mark.png",
 	]:
 		var path := "res://assets/art/pixel/fx/%s" % n
 		var tex: Texture2D = load(path)

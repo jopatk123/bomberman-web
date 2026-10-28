@@ -28,6 +28,8 @@ const TEX_SD_HAZARD: Array[Texture2D] = [
 	preload("res://assets/art/pixel/fx/sd_hazard_1.png"),
 	preload("res://assets/art/pixel/fx/sd_hazard_2.png"),
 ]
+## 空投落地前的降落伞木箱。闪烁只改透明度。
+const TEX_AIRDROP_MARK: Texture2D = preload("res://assets/art/pixel/fx/airdrop_mark.png")
 
 
 var map_layer: Node2D
@@ -315,24 +317,20 @@ func show_airdrop_mark(cell: Vector2i) -> void:
 	clear_airdrop_mark()
 	if fx_layer == null:
 		return
-	var root := Node2D.new()
-	root.name = "AirdropMark"
-	root.z_index = 2
-	root.position = Vector2(cell.x * TILE, cell.y * TILE)
-	# 斜向阴影，再套一圈像素描边。
-	root.add_child(_px_rect(Vector2(8, 10), Vector2(34, 34), Color(0, 0, 0, 0.45)))
-	root.add_child(_px_rect(Vector2(6, 6), Vector2(36, 36), Color(0.1, 0.14, 0.22, 0.4)))
-	var edge := Color(1.0, 0.92, 0.42, 1.0)
-	root.add_child(_px_rect(Vector2(4, 4), Vector2(40, 2), edge))
-	root.add_child(_px_rect(Vector2(4, 42), Vector2(40, 2), edge))
-	root.add_child(_px_rect(Vector2(4, 4), Vector2(2, 40), edge))
-	root.add_child(_px_rect(Vector2(42, 4), Vector2(2, 40), edge))
-	fx_layer.add_child(root)
-	if root.is_inside_tree():
-		var tw := root.create_tween()
+	# 一整格像素预告：降落伞、木箱、四角括号。闪烁只改透明度。
+	var spr := Sprite2D.new()
+	spr.name = "AirdropMark"
+	spr.texture = TEX_AIRDROP_MARK
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.centered = false
+	spr.z_index = 2
+	spr.position = Vector2(cell.x * TILE, cell.y * TILE)
+	fx_layer.add_child(spr)
+	if spr.is_inside_tree():
+		var tw := spr.create_tween()
 		tw.set_loops(0)
-		tw.tween_property(root, "modulate:a", 0.45, 0.28)
-		tw.tween_property(root, "modulate:a", 1.0, 0.28)
+		tw.tween_property(spr, "modulate:a", 0.45, 0.28)
+		tw.tween_property(spr, "modulate:a", 1.0, 0.28)
 
 
 func clear_airdrop_mark() -> void:
@@ -341,15 +339,6 @@ func clear_airdrop_mark() -> void:
 	var n := fx_layer.get_node_or_null("AirdropMark")
 	if n:
 		n.free()
-
-
-func _px_rect(pos: Vector2, size: Vector2, color: Color) -> ColorRect:
-	var rect := ColorRect.new()
-	rect.position = pos
-	rect.size = size
-	rect.color = color
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return rect
 
 
 func clear_sudden_death() -> void:

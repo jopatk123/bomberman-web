@@ -81,7 +81,7 @@ autoload Net / GameState / Audio   ← 连接、大厅快照、播放
 
 画面不进 `match/`：`MatchBoard` 画格子和实体，`MatchHud` 画文字和结算面板，`ClientPredict` 保存客机预演链和影子炸弹。`MatchSession` 管离开、被踢、断线、中途弃权和专用服空房回大厅。`@rpc` 仍只在 `game_root`。
 
-像素街机贴图在 `assets/art/pixel/`：`lobby_bg.jpg` 铺满大厅；`tiles/` 地块（空地是两色柔对比棋盘草，带小花、土斑和草丛）；`entities/` 四色角色、炸弹，以及五种道具图标 `powerup_bomb.png` / `powerup_range.png` / `powerup_speed.png` / `powerup_kick.png` / `powerup_pierce.png`；`fx/` 爆炸中心/横竖焰与软墙碎裂三帧。`MatchBoard.play_boom` 用 `Sprite2D` 播爆炸与碎裂，软墙炸开后 `repaint_cells` 换地板。缩圈致死格用 `fx/sd_hazard_*.png` 像素焰脉贴图（出现动画 + 循环闪烁）。道具外观是这些像素图标，不是色块。
+像素街机贴图在 `assets/art/pixel/`：`lobby_bg.jpg` 铺满大厅；`tiles/` 地块（空地是两色柔对比棋盘草，带小花、土斑和草丛；硬墙是砖，软墙是木箱）；`entities/` 四色角色、炸弹，以及五种道具图标 `powerup_bomb.png` / `powerup_range.png` / `powerup_speed.png` / `powerup_kick.png` / `powerup_pierce.png`；`fx/` 爆炸中心/横竖焰与软墙碎裂三帧。`MatchBoard.play_boom` 用 `Sprite2D` 播爆炸与碎裂，软墙炸开后 `repaint_cells` 换地板。缩圈致死格用 `fx/sd_hazard_*.png` 像素焰脉贴图（出现动画 + 循环闪烁）。空投预告是 `fx/airdrop_mark.png`（降落伞、木箱、四角括号），`show_airdrop_mark` 挂 `Sprite2D` 并只闪透明度；落地后仍用原来的道具图标。道具外观是这些像素图标，不是色块。
 
 ## 大厅 / 房间
 

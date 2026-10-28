@@ -24,7 +24,7 @@ bomberman-web/
   autoload/Net.gd          # WebSocket 开房/加入 + 网页默认 WSS
   autoload/GameState.gd
   assets/art/pixel/        # 大厅背景、地块、角色 / 炸弹 / 道具图标
-  assets/audio/            # CC0 芯片乐 BGM + 音效（见 CREDITS.md）
+  assets/audio/            # BGM（SA3）+ CC0 芯片音效（见 CREDITS.md）
   scenes/lobby.tscn        # 大厅（主场景）
   scenes/game.tscn
   scripts/…
@@ -153,14 +153,14 @@ bomberman.jopatk.top {
 
 ## 音频
 
-像素芯片乐（大厅 / 对局 / 突然死亡循环，以及胜负短句）和音效都在 `assets/audio/`，许可见 [assets/audio/CREDITS.md](assets/audio/CREDITS.md)。曲目是仓库里 `tools/gen_audio.py` 生成的原创，CC0，可再分发。
+BGM（大厅 / 对局 / 突然死亡循环，以及胜负短句）和音效都在 `assets/audio/`，出处与许可见 [assets/audio/CREDITS.md](assets/audio/CREDITS.md)。BGM 现为 Stable Audio 3 MLX 生成后压成 Ogg；`sfx/` 仍是 `tools/gen_audio.py` 的 CC0 芯片音效。
 
 大厅有「音乐 / 音效」开关，选择记在 `user://audio.cfg`，默认开。网页要先点一下或按一下键才会出声，避免一打开就触发浏览器自动播放失败。
 
 本地试听：进大厅后点任意处听大厅循环；「单机试试」切到对局；约 90 秒后突然死亡换成同一风格、稍快一点的明亮循环；结算播胜/负短句，回大厅再接大厅曲。
 
 ```bash
-python3 tools/gen_audio.py   # 重新生成 ogg
+python3 tools/gen_audio.py   # 仅重新生成 sfx（及旧芯片 BGM 脚本，线上 BGM 已换）
 godot --headless --path . -s res://scripts/verify_audio.gd
 ```
 

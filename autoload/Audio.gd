@@ -21,11 +21,11 @@ const SFX := {
 }
 const LOOPING := ["lobby", "match", "sudden_death"]
 const MUSIC_DB := {
-	"lobby": -3.0,
-	"match": -1.0,
-	"sudden_death": 0.0,
-	"win": 0.5,
-	"lose": -1.0,
+	"lobby": -6.0,
+	"match": -5.0,
+	"sudden_death": -4.0,
+	"win": -3.0,
+	"lose": -4.0,
 }
 const SFX_DB := {
 	"place_bomb": -6.0,

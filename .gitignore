@@ -10,3 +10,7 @@
 build/
 # Keep export_presets.cfg tracked
 !export_presets.cfg
+
+# Local BGM candidate wav/mp3 (Stable Audio etc.); keep out of git
+_bgm_candidates/
+release/

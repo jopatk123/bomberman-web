@@ -114,6 +114,31 @@ func _run() -> void:
 			quit(1)
 			return
 		print("[verify] 已加载 ", path)
+	for grass_path in ["res://assets/art/pixel/tiles/floor_a.png", "res://assets/art/pixel/tiles/floor_b.png"]:
+		var grass: Texture2D = load(grass_path)
+		var gimg := grass.get_image()
+		if gimg == null or not _looks_like_grass(gimg):
+			push_error("[verify] 失败：%s 不像草地" % grass_path)
+			quit(1)
+			return
+	var powerup_paths := [
+		"res://assets/art/pixel/entities/powerup_bomb.png",
+		"res://assets/art/pixel/entities/powerup_range.png",
+		"res://assets/art/pixel/entities/powerup_speed.png",
+		"res://assets/art/pixel/entities/powerup_kick.png",
+		"res://assets/art/pixel/entities/powerup_pierce.png",
+	]
+	for path in powerup_paths:
+		var tex = load(path)
+		if tex == null or not (tex is Texture2D):
+			push_error("[verify] 失败：无法加载 %s" % path)
+			quit(1)
+			return
+		if (tex as Texture2D).get_width() != 48 or (tex as Texture2D).get_height() != 48:
+			push_error("[verify] 失败：%s 不是 48x48" % path)
+			quit(1)
+			return
+		print("[verify] 已加载 ", path)
 
 	var host := Node2D.new()
 	var map := Node2D.new()
@@ -179,3 +204,15 @@ func _run() -> void:
 	host.queue_free()
 	print("[verify] 成功")
 	quit(0)
+
+
+func _looks_like_grass(img: Image) -> bool:
+	var pts: Array[Vector2i] = [
+		Vector2i(2, 2), Vector2i(40, 4), Vector2i(4, 40), Vector2i(44, 44),
+	]
+	var green := 0
+	for p in pts:
+		var c: Color = img.get_pixel(p.x, p.y)
+		if c.a > 0.9 and c.g > 0.35 and c.g > c.r and c.g > c.b:
+			green += 1
+	return green >= 3

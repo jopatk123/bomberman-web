@@ -77,6 +77,9 @@ var room_code: String = ""
 ## 本局角色，含人机。大厅的 GameState 只留真人。
 var match_roster: Dictionary = {}
 
+## 人机短时记忆（禁回头 / stuck / 磨箱软墙），再来一局清空。
+var _bot_mem: Dictionary = {}
+
 ## 转发出去，旧校验还能读到棋盘上的火焰节点。
 var _sd_visuals: Dictionary:
 	get:
@@ -291,6 +294,7 @@ func _notify_room(method: StringName, args: Array = []) -> void:
 func _rpc_setup_match(seed: int, players_snap: Dictionary, p_map_id: int = 0) -> void:
 	# 人机只算对局角色。install_roster 让大厅座位仍只有真人。
 	match_roster = MatchFill.fill(players_snap)
+	_bot_mem.clear()
 	GameState.install_roster(room_code, MatchFill.humans(match_roster))
 	soft_seed = seed
 	map_id = Arena.clamp_map_id(p_map_id)
@@ -1114,6 +1118,7 @@ func _rpc_request_rematch() -> void:
 func _restart_match() -> void:
 	if not Net.is_authority():
 		return
+	_bot_mem.clear()
 	var roster := _roster()
 	if roster.is_empty():
 		return
@@ -1291,7 +1296,10 @@ func _tick_one_bot(id: int) -> void:
 	var st: Dictionary = player_stats.get(id, _default_stats())
 	if float(st.get("move_cd", 0.0)) > 0.0:
 		return
-	var decision := MatchBot.decide(_bot_view(id))
+	var view := _bot_view(id)
+	var decision := MatchBot.decide(view)
+	if typeof(decision.get("mem", null)) == TYPE_DICTIONARY:
+		_bot_mem[id] = decision.mem
 	var action := int(decision.get("action", MatchBot.Action.WAIT))
 	if action == MatchBot.Action.BOMB:
 		_try_place_bomb(id)
@@ -1303,6 +1311,7 @@ func _bot_view(bot_id: int) -> Dictionary:
 	var cell: Vector2i = player_nodes[bot_id].get_meta("cell")
 	var st: Dictionary = player_stats.get(bot_id, _default_stats())
 	var max_b := clampi(int(st.get("bombs", BASE_BOMBS)), 1, MAX_BOMBS)
+	var owned := _count_bombs_owned(bot_id)
 	var bomb_list: Array = []
 	for b in bombs.values():
 		bomb_list.append({
@@ -1328,6 +1337,7 @@ func _bot_view(bot_id: int) -> Dictionary:
 			return a.x < b.x
 		return a.y < b.y
 	)
+	var mem: Dictionary = _bot_mem.get(bot_id, {})
 	return {
 		"grid": grid,
 		"cols": COLS,
@@ -1335,9 +1345,16 @@ func _bot_view(bot_id: int) -> Dictionary:
 		"cell": cell,
 		"blast_range": clampi(int(st.get("range", BASE_BLAST)), 1, MAX_RANGE),
 		"pierce": int(st.get("pierce", 0)) > 0,
-		"can_place": _count_bombs_owned(bot_id) < max_b and _bomb_id_at(cell) < 0,
+		"has_kick": int(st.get("kick", 0)) > 0,
+		"bomb_stock": maxi(max_b - owned, 0),
+		"can_place": owned < max_b and _bomb_id_at(cell) < 0,
 		"bombs": bomb_list,
 		"others": others,
 		"lethal": lethal,
 		"powerups": drops,
+		"last_dx": int(mem.get("last_dx", 0)),
+		"last_dy": int(mem.get("last_dy", 0)),
+		"stuck": int(mem.get("stuck", 0)),
+		"grind_x": int(mem.get("grind_x", -1)),
+		"grind_y": int(mem.get("grind_y", -1)),
 	}

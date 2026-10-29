@@ -79,6 +79,75 @@ func _bot_rules() -> bool:
 	if int(grabbed.action) != MatchBot.Action.MOVE or int(grabbed.dx) != 0 or int(grabbed.dy) != 1:
 		return _fail("人机放过了相邻道具：%s" % str(grabbed))
 	print("[verify_bot] 道具通过")
+
+	# 窄廊 + 射程 2：两步启发式逃不出，完整 BFS 沿廊走出火线后应放弹。
+	var lane := _empty(9, 9)
+	for x in range(1, 8):
+		for y in range(1, 8):
+			lane[y][x] = 1
+	for y in range(1, 8):
+		lane[y][4] = 0
+	lane[7][4] = 2
+	var deep := MatchBot.decide({
+		"grid": lane, "cols": 9, "rows": 9, "cell": Vector2i(4, 6),
+		"blast_range": 2, "can_place": true, "bomb_stock": 1,
+		"bombs": [], "others": [], "lethal": [], "powerups": [],
+	})
+	if int(deep.action) != MatchBot.Action.BOMB:
+		return _fail("完整逃生 BFS 应允许放弹：%s" % str(deep))
+	print("[verify_bot] 深廊逃生放弹通过")
+
+	# 远处道具：不只捡四邻，应朝道具迈步。
+	var far := _empty(9, 9)
+	var hunt := MatchBot.decide({
+		"grid": far, "cols": 9, "rows": 9, "cell": Vector2i(2, 2),
+		"blast_range": 2, "can_place": false, "bomb_stock": 0,
+		"bombs": [], "others": [], "lethal": [],
+		"powerups": [Vector2i(6, 2)],
+	})
+	if int(hunt.action) != MatchBot.Action.MOVE or int(hunt.dx) != 1 or int(hunt.dy) != 0:
+		return _fail("人机没有奔向远处道具：%s" % str(hunt))
+	print("[verify_bot] 远处道具通过")
+
+	# 有踢弹：唯一出路被弹堵住时，逃命应迈向炸弹格踢开。
+	var kick_grid := _empty(9, 9)
+	for x in range(1, 8):
+		for y in range(1, 8):
+			kick_grid[y][x] = 1
+	kick_grid[4][2] = 0
+	kick_grid[4][3] = 0
+	kick_grid[4][4] = 0
+	kick_grid[4][5] = 0
+	var kick_flee := MatchBot.decide({
+		"grid": kick_grid, "cols": 9, "rows": 9, "cell": Vector2i(2, 4),
+		"blast_range": 2, "can_place": false, "has_kick": true,
+		"bombs": [
+			{"x": 2, "y": 4, "timer": 0.5, "range": 2, "pierce": false},
+			{"x": 3, "y": 4, "timer": 1.0, "range": 1, "pierce": false},
+		],
+		"others": [], "lethal": [], "powerups": [],
+	})
+	# 自己站在弹上（危险），东侧有另一颗挡路；踢开后可往安全走。
+	if int(kick_flee.action) != MatchBot.Action.MOVE:
+		return _fail("有踢逃命应移动：%s" % str(kick_flee))
+	print("[verify_bot] 踢弹逃命通过")
+
+	# 禁回头：刚向右走过来，左右都通时优先不立刻退回。
+	var anti := _empty(9, 9)
+	anti[3][5] = 2
+	var no_back := MatchBot.decide({
+		"grid": anti, "cols": 9, "rows": 9, "cell": Vector2i(3, 3),
+		"blast_range": 2, "can_place": false, "bomb_stock": 0,
+		"bombs": [], "others": [], "lethal": [], "powerups": [],
+		"last_dx": -1, "last_dy": 0, "stuck": 0,
+		"grind_x": -1, "grind_y": -1,
+	})
+	# 软墙在 (5,3)，应向右；last 是从右来的（last_dx=-1 表示上步向左），不要立刻再向左。
+	if int(no_back.action) != MatchBot.Action.MOVE:
+		return _fail("禁回头场景应移动：%s" % str(no_back))
+	if int(no_back.dx) == -1 and int(no_back.dy) == 0:
+		return _fail("人机立刻回头了：%s" % str(no_back))
+	print("[verify_bot] 禁回头通过")
 	return true
 
 

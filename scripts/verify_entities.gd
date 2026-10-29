@@ -41,12 +41,17 @@ func _run() -> void:
 		return
 	var pnode: Node2D = game.player_nodes[1]
 	var body := pnode.get_node_or_null("Body")
-	if body == null or not (body is Sprite2D):
-		push_error("[verify_entities] 失败：玩家 Body 不是 Sprite2D")
+	var ok_body := body is Sprite2D or body is AnimatedSprite2D
+	if body == null or not ok_body:
+		push_error("[verify_entities] 失败：玩家 Body 不是 Sprite2D/AnimatedSprite2D")
 		quit(1)
 		return
-	if (body as Sprite2D).texture == null:
+	if body is Sprite2D and (body as Sprite2D).texture == null:
 		push_error("[verify_entities] 失败：玩家贴图为空")
+		quit(1)
+		return
+	if body is AnimatedSprite2D and (body as AnimatedSprite2D).sprite_frames == null:
+		push_error("[verify_entities] 失败：玩家 sprite_frames 为空")
 		quit(1)
 		return
 

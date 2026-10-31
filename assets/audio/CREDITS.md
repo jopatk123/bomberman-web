@@ -1,23 +1,38 @@
 # 音频出处与许可
 
-## BGM（`bgm/*.ogg`）
+## 总览
 
-2026-10-29 起，大厅 / 对局 / 缩圈循环与胜负短句改用本机 **Stable Audio 3 MLX**（`./sa3`，`sm-music` + `same-s`）生成的候选曲，再经 `ffmpeg`（libvorbis）压成 Ogg。源 wav / 预览与提示词见 `/workspace/_bgm_candidates_bomberman_2026-10-29/2026-10-29/`（勿放回工程树：gitignore 挡不住 `all_resources` 导出；`export_presets` 已 exclude `_bgm_candidates/*`）。
+2026-10-31 起，**BGM 与 SFX 均**为本机 **Stable Audio 3 MLX**（`./sa3`，BGM 用 `sm-music`、SFX 用 `sm-sfx`，解码 `same-s`）按水彩气质生成的候选，再经 `ffmpeg`（libvorbis）压成 Ogg Vorbis。候选源 wav / 预览与 `manifest.json` 见 `/workspace/_audio_candidates_bomberman_watercolor_2026-10-31/`（**勿提交进仓**；gitignore / 导出排除同旧 BGM 候选约定）。
+
+许可以 Stable Audio 3 / 所用权重条款为准；仅用于本项目摸鱼炸弹人。旧芯片乐脚本 `tools/gen_audio.py` 仍保留，**不再作为线上 BGM/SFX 来源**。
+
+## BGM（`bgm/*.ogg`）
 
 | 文件 | 候选源 | 内容 | 备注 |
 |------|--------|------|------|
-| `bgm/lobby.ogg` | `01_lobby_bright.wav` | 大厅循环，约 30s，明亮街机菜单感 | `loop=true` |
-| `bgm/match.ogg` | `08_match_funky.wav` | 对局循环，约 32s，funky 街机对战 | `loop=true` |
-| `bgm/sudden_death.ogg` | `04_sudden_death_up.wav` | 缩圈循环，约 30s，加快但仍偏欢乐 | `loop=true` |
-| `bgm/win.ogg` | `05_win_fanfare.wav` | 胜利短句，约 7s | 不循环 |
-| `bgm/lose.ogg` | `06_lose_soft.wav` | 失败 / 平局短句，约 7s | 不循环 |
+| `bgm/lobby.ogg` | `02_lobby_b.wav` | 大厅循环，约 32s，水彩明亮菜单感 | `loop=true` |
+| `bgm/match.ogg` | `04_match_b.wav` | 对局循环，约 34s，水彩对战 | `loop=true` |
+| `bgm/sudden_death.ogg` | `06_sudden_b.wav` | 缩圈循环，约 28s，加快但仍偏欢乐 | `loop=true` |
+| `bgm/win.ogg` | `07_win.wav` | 胜利短句，约 8s | 不循环 |
+| `bgm/lose.ogg` | `08_lose.wav` | 失败 / 平局短句，约 8s | 不循环 |
 
-生成负向提示统一排除人声。种子 / CFG / 时长见该目录 `manifest.json`。许可以 Stable Audio 3 / 所用权重条款为准；仅用于本项目摸鱼炸弹人。
-
-旧版芯片乐脚本仍保留：`tools/gen_audio.py`（不再作为线上 BGM 来源）。
+生成负向提示统一排除人声。种子 / CFG / 时长见该目录 `manifest.json`。
 
 ## 音效（`sfx/*.ogg`）
 
-仍为本项目 `tools/gen_audio.py` 写的原创芯片音效（放弹、爆炸、踢弹、死亡、拾取、界面点击、进房、准备），作者贡献到公有领域，**CC0 1.0**：<https://creativecommons.org/publicdomain/zero/1.0/>。
+同批 SA3 `sm-sfx` 水彩气质生成后压成 Ogg（主文件；`boom`/`pickup` 等未采用 `_b` 备选）。
 
-可再分发、修改、商用，不要求署名。没有使用 OpenGameArt / Freesound / Kenney 的成品音效。
+| 文件 | 用途 |
+|------|------|
+| `place_bomb.ogg` | 放弹 |
+| `boom.ogg` | 爆炸 |
+| `soft_break.ogg` | 软墙碎裂（与 boom 并存，每次爆炸最多一次） |
+| `kick.ogg` | 踢弹 |
+| `death.ogg` | 阵亡 |
+| `pickup.ogg` | 拾取道具 |
+| `airdrop_land.ogg` | 空投落地 |
+| `ui_click.ogg` | 界面点击 |
+| `enter_room.ogg` | 进房 |
+| `ready.ogg` | 准备 |
+
+没有使用 OpenGameArt / Freesound / Kenney 的成品音效。

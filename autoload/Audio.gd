@@ -18,6 +18,8 @@ const SFX := {
 	"ui_click": "res://assets/audio/sfx/ui_click.ogg",
 	"enter_room": "res://assets/audio/sfx/enter_room.ogg",
 	"ready": "res://assets/audio/sfx/ready.ogg",
+	"airdrop_land": "res://assets/audio/sfx/airdrop_land.ogg",  # 空投落地
+	"soft_break": "res://assets/audio/sfx/soft_break.ogg",  # 软墙碎裂（与 boom 并存，每次爆炸最多一次）
 }
 const LOOPING := ["lobby", "match", "sudden_death"]
 const MUSIC_DB := {
@@ -36,6 +38,8 @@ const SFX_DB := {
 	"ui_click": -12.0,
 	"enter_room": -6.0,
 	"ready": -6.0,
+	"airdrop_land": -3.0,
+	"soft_break": -4.0,
 }
 const _SAVE_PATH := "user://audio.cfg"
 const _VOICE_CAP := 8

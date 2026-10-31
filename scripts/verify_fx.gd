@@ -13,7 +13,7 @@ func _run() -> void:
 		"sd_hazard_0.png", "sd_hazard_1.png", "sd_hazard_2.png",
 		"airdrop_mark.png",
 	]:
-		var path := "res://assets/art/pixel/fx/%s" % n
+		var path := "res://assets/art/watercolor/fx/%s" % n
 		var tex: Texture2D = load(path)
 		if tex == null or tex.get_width() != 48 or tex.get_height() != 48:
 			push_error("[verify_fx] 失败：%s" % path)

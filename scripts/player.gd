@@ -4,10 +4,10 @@ extends Node2D
 ## 轻量动效（呼吸 / 弹跳）与走路帧动画都在本脚本，不参与权威规则。
 
 const SHEET_PATHS: Array[String] = [
-	"res://assets/art/pixel/entities/anim/player_blue_sheet.png",
-	"res://assets/art/pixel/entities/anim/player_red_sheet.png",
-	"res://assets/art/pixel/entities/anim/player_green_sheet.png",
-	"res://assets/art/pixel/entities/anim/player_yellow_sheet.png",
+	"res://assets/art/watercolor/entities/anim/player_blue_sheet.png",
+	"res://assets/art/watercolor/entities/anim/player_red_sheet.png",
+	"res://assets/art/watercolor/entities/anim/player_green_sheet.png",
+	"res://assets/art/watercolor/entities/anim/player_yellow_sheet.png",
 ]
 
 ## 精灵表：idle + walk0..walk3，每帧 48×48

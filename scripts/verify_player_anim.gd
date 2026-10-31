@@ -9,7 +9,7 @@ func _initialize() -> void:
 func _run() -> void:
 	var colors := ["blue", "red", "green", "yellow"]
 	for c in colors:
-		var path := "res://assets/art/pixel/entities/anim/player_%s_sheet.png" % c
+		var path := "res://assets/art/watercolor/entities/anim/player_%s_sheet.png" % c
 		var tex: Texture2D = load(path)
 		if tex == null:
 			push_error("[verify_player_anim] 失败：缺少 %s" % path)

@@ -4,11 +4,11 @@ extends Node2D
 enum Kind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3, PIERCE = 4 }
 
 const TEX: Array[Texture2D] = [
-	preload("res://assets/art/pixel/entities/powerup_bomb.png"),
-	preload("res://assets/art/pixel/entities/powerup_range.png"),
-	preload("res://assets/art/pixel/entities/powerup_speed.png"),
-	preload("res://assets/art/pixel/entities/powerup_kick.png"),
-	preload("res://assets/art/pixel/entities/powerup_pierce.png"),
+	preload("res://assets/art/watercolor/entities/powerup_bomb.png"),
+	preload("res://assets/art/watercolor/entities/powerup_range.png"),
+	preload("res://assets/art/watercolor/entities/powerup_speed.png"),
+	preload("res://assets/art/watercolor/entities/powerup_kick.png"),
+	preload("res://assets/art/watercolor/entities/powerup_pierce.png"),
 ]
 
 var kind: int = Kind.BOMB

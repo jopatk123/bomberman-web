@@ -23,7 +23,7 @@ Godot **4.7.2**：2D 炸弹人 + **WebSocket** 联机（浏览器）+ **专用�
 bomberman-web/
   autoload/Net.gd          # WebSocket 开房/加入 + 网页默认 WSS
   autoload/GameState.gd
-  assets/art/pixel/        # 大厅背景、地块、角色 / 炸弹 / 道具图标
+  assets/art/watercolor/  # 默认水彩（pixel/ 保留回滚）
   assets/audio/            # BGM+SFX（SA3 水彩气质 Ogg，见 CREDITS.md）
   scenes/lobby.tscn        # 大厅（主场景）
   scenes/game.tscn
@@ -166,7 +166,7 @@ godot --headless --path . -s res://scripts/verify_audio.gd
 
 ## 已知限制
 
-- 大厅、地块、角色、炸弹和五种道具都是像素贴图（`assets/art/pixel`）。真人不足 4 人时，对局开始由权威端补人机（头顶标「人机1」等），人机不出现在大厅名单里
+- 大厅、地块、角色、炸弹和五种道具默认水彩贴图（`assets/art/watercolor`，pixel 可回滚）。真人不足 4 人时，对局开始由权威端补人机（头顶标「人机1」等），人机不出现在大厅名单里
 - 无账号、无断线重连，也不能重连回正在进行的对局
 - 房主是该房间玩家里最小的 peer。专用服进程本身不是玩家；一间房的人走光后这间房消失，其它房间继续
 - 对局中或房间已满（4 人）时拒绝登记，并在客户端提示原因

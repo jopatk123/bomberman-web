@@ -78,7 +78,7 @@ func _run() -> void:
 		push_error("[verify] 失败：大厅标题缺失")
 		quit(1)
 		return
-	print("[verify] 大厅像素背景通过")
+	print("[verify] 大厅水彩背景通过")
 	lobby.queue_free()
 	await process_frame
 
@@ -119,10 +119,10 @@ func _run() -> void:
 	game.queue_free()
 
 	var tile_paths := [
-		"res://assets/art/pixel/tiles/floor_a.png",
-		"res://assets/art/pixel/tiles/floor_b.png",
-		"res://assets/art/pixel/tiles/hard.png",
-		"res://assets/art/pixel/tiles/soft.png",
+		"res://assets/art/watercolor/tiles/floor_a.png",
+		"res://assets/art/watercolor/tiles/floor_b.png",
+		"res://assets/art/watercolor/tiles/hard.png",
+		"res://assets/art/watercolor/tiles/soft.png",
 	]
 	for path in tile_paths:
 		var tex = load(path)
@@ -135,7 +135,7 @@ func _run() -> void:
 			quit(1)
 			return
 		print("[verify] 已加载 ", path)
-	for grass_path in ["res://assets/art/pixel/tiles/floor_a.png", "res://assets/art/pixel/tiles/floor_b.png"]:
+	for grass_path in ["res://assets/art/watercolor/tiles/floor_a.png", "res://assets/art/watercolor/tiles/floor_b.png"]:
 		var grass: Texture2D = load(grass_path)
 		var gimg := grass.get_image()
 		if gimg == null or not _looks_like_grass(gimg):
@@ -143,11 +143,11 @@ func _run() -> void:
 			quit(1)
 			return
 	var powerup_paths := [
-		"res://assets/art/pixel/entities/powerup_bomb.png",
-		"res://assets/art/pixel/entities/powerup_range.png",
-		"res://assets/art/pixel/entities/powerup_speed.png",
-		"res://assets/art/pixel/entities/powerup_kick.png",
-		"res://assets/art/pixel/entities/powerup_pierce.png",
+		"res://assets/art/watercolor/entities/powerup_bomb.png",
+		"res://assets/art/watercolor/entities/powerup_range.png",
+		"res://assets/art/watercolor/entities/powerup_speed.png",
+		"res://assets/art/watercolor/entities/powerup_kick.png",
+		"res://assets/art/watercolor/entities/powerup_pierce.png",
 	]
 	for path in powerup_paths:
 		var tex = load(path)
@@ -221,7 +221,7 @@ func _run() -> void:
 			push_error("[verify] 失败：地图上还留着色块")
 			quit(1)
 			return
-	print("[verify] 像素地块通过")
+	print("[verify] 水彩地块通过")
 	host.queue_free()
 	print("[verify] 成功")
 	quit(0)

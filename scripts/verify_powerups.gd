@@ -128,7 +128,7 @@ func _run() -> void:
 			quit(1)
 			return
 		vis.queue_free()
-	print("[verify_pu] 五种像素图标通过")
+	print("[verify_pu] 五种水彩道具图标通过")
 
 	# 走上去捡起道具。
 	game.player_nodes[pid].set_meta("cell", soft)

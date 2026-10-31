@@ -7,7 +7,7 @@ config/name="摸鱼炸弹人"
 config/description="2D Bomberman Web multiplayer starter (WebSocket dedicated server)"
 run/main_scene="res://scenes/lobby.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://icon.png"
 
 [autoload]
 

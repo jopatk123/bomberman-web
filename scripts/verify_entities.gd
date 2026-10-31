@@ -11,7 +11,7 @@ func _run() -> void:
 		"player_blue.png", "player_red.png", "player_green.png", "player_yellow.png", "bomb.png",
 	]
 	for n in tex_names:
-		var path := "res://assets/art/pixel/entities/%s" % n
+		var path := "res://assets/art/watercolor/entities/%s" % n
 		var tex: Texture2D = load(path)
 		if tex == null:
 			push_error("[verify_entities] 失败：缺少 %s" % path)

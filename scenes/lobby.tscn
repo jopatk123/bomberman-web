@@ -1,8 +1,8 @@
 [gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/lobby.gd" id="1_lobby"]
-[ext_resource type="Texture2D" path="res://assets/art/pixel/lobby_bg.jpg" id="2_bg"]
-[ext_resource type="Texture2D" path="res://assets/art/pixel/entities/bomb.png" id="3_bomb"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby_bg.jpg" id="2_bg"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/entities/bomb.png" id="3_bomb"]
 [ext_resource type="Texture2D" path="res://assets/ui/panel_nine.png" id="4_panel"]
 [ext_resource type="Theme" path="res://assets/ui/default_theme.tres" id="5_theme"]
 

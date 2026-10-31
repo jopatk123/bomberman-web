@@ -1,7 +1,7 @@
 extends Node2D
 ## 炸弹外观。引信、爆炸、踢弹滑行都在权威端算（game_root.gd）。
 
-const TEX_BOMB: Texture2D = preload("res://assets/art/pixel/entities/bomb.png")
+const TEX_BOMB: Texture2D = preload("res://assets/art/watercolor/entities/bomb.png")
 
 var _age: float = 0.0
 var _body: Sprite2D

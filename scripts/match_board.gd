@@ -11,25 +11,25 @@ const VIEW_W := 960.0
 const HUD_CLEAR_TOP := 70.0
 ## 底栏帮助文字上沿。棋盘底边不要压住它。
 const HUD_CLEAR_BOTTOM := 676.0
-const TEX_FLOOR_A: Texture2D = preload("res://assets/art/pixel/tiles/floor_a.png")
-const TEX_FLOOR_B: Texture2D = preload("res://assets/art/pixel/tiles/floor_b.png")
-const TEX_HARD: Texture2D = preload("res://assets/art/pixel/tiles/hard.png")
-const TEX_SOFT: Texture2D = preload("res://assets/art/pixel/tiles/soft.png")
-const TEX_BLAST_CENTER: Texture2D = preload("res://assets/art/pixel/fx/blast_center.png")
-const TEX_BLAST_H: Texture2D = preload("res://assets/art/pixel/fx/blast_h.png")
-const TEX_BLAST_V: Texture2D = preload("res://assets/art/pixel/fx/blast_v.png")
+const TEX_FLOOR_A: Texture2D = preload("res://assets/art/watercolor/tiles/floor_a.png")
+const TEX_FLOOR_B: Texture2D = preload("res://assets/art/watercolor/tiles/floor_b.png")
+const TEX_HARD: Texture2D = preload("res://assets/art/watercolor/tiles/hard.png")
+const TEX_SOFT: Texture2D = preload("res://assets/art/watercolor/tiles/soft.png")
+const TEX_BLAST_CENTER: Texture2D = preload("res://assets/art/watercolor/fx/blast_center.png")
+const TEX_BLAST_H: Texture2D = preload("res://assets/art/watercolor/fx/blast_h.png")
+const TEX_BLAST_V: Texture2D = preload("res://assets/art/watercolor/fx/blast_v.png")
 const TEX_SOFT_BREAK: Array[Texture2D] = [
-	preload("res://assets/art/pixel/fx/soft_break_0.png"),
-	preload("res://assets/art/pixel/fx/soft_break_1.png"),
-	preload("res://assets/art/pixel/fx/soft_break_2.png"),
+	preload("res://assets/art/watercolor/fx/soft_break_0.png"),
+	preload("res://assets/art/watercolor/fx/soft_break_1.png"),
+	preload("res://assets/art/watercolor/fx/soft_break_2.png"),
 ]
 const TEX_SD_HAZARD: Array[Texture2D] = [
-	preload("res://assets/art/pixel/fx/sd_hazard_0.png"),
-	preload("res://assets/art/pixel/fx/sd_hazard_1.png"),
-	preload("res://assets/art/pixel/fx/sd_hazard_2.png"),
+	preload("res://assets/art/watercolor/fx/sd_hazard_0.png"),
+	preload("res://assets/art/watercolor/fx/sd_hazard_1.png"),
+	preload("res://assets/art/watercolor/fx/sd_hazard_2.png"),
 ]
 ## 空投落地前的降落伞木箱。闪烁只改透明度。
-const TEX_AIRDROP_MARK: Texture2D = preload("res://assets/art/pixel/fx/airdrop_mark.png")
+const TEX_AIRDROP_MARK: Texture2D = preload("res://assets/art/watercolor/fx/airdrop_mark.png")
 
 
 var map_layer: Node2D

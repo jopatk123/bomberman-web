@@ -16,7 +16,7 @@ func setup(bid: int, cell: Vector2i, tile: int) -> void:
 	_body = Sprite2D.new()
 	_body.name = "Body"
 	_body.texture = TEX_BOMB
-	_body.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_body.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_body.centered = true
 	add_child(_body)
 	set_process(true)

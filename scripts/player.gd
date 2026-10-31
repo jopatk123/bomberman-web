@@ -41,7 +41,7 @@ func setup(peer_id: int, cell: Vector2i, color: Color, display_name: String, til
 	_body = AnimatedSprite2D.new()
 	_body.name = "Body"
 	_body.centered = true
-	_body.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_body.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_body.sprite_frames = _build_frames(_color_idx)
 	_body.animation = &"idle"
 	_body.play(&"idle")
@@ -54,6 +54,9 @@ func setup(peer_id: int, cell: Vector2i, color: Color, display_name: String, til
 	if font:
 		label.add_theme_font_override("font", font)
 	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_color_override("font_color", Color(1, 0.98, 0.9, 1))
+	label.add_theme_color_override("font_outline_color", Color(0.08, 0.05, 0.02, 0.9))
+	label.add_theme_constant_override("outline_size", 3)
 	add_child(label)
 
 

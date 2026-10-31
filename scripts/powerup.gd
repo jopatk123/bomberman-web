@@ -25,7 +25,7 @@ func setup(pid: int, cell: Vector2i, pkind: int, tile: int) -> void:
 	var icon := Sprite2D.new()
 	icon.name = "Icon"
 	icon.centered = true
-	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	if pkind >= 0 and pkind < TEX.size():
 		icon.texture = TEX[pkind]
 	else:

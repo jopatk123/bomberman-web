@@ -4,6 +4,8 @@ extends RefCounted
 
 
 const HELP := "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹 / 黄P穿透"
+const TEX_END_WIN: Texture2D = preload("res://assets/art/watercolor/ui/end_win.png")
+const TEX_END_LOSE: Texture2D = preload("res://assets/art/watercolor/ui/end_lose.png")
 
 var status_label: Label
 var stats_label: Label
@@ -116,13 +118,20 @@ func refresh_sudden_death(
 		sd_label.text = text
 
 
-func show_end(winner_name: String) -> void:
+func show_end(winner_name: String, local_won: bool = false) -> void:
+	var art := end_panel.get_node_or_null("VBox/EndArt") as TextureRect
+	if art == null:
+		art = end_panel.find_child("EndArt", true, false) as TextureRect
 	if winner_name.is_empty():
 		set_status("对局结束：平局")
 		end_title.text = "对局结束\n平局"
+		if art:
+			art.texture = TEX_END_LOSE
 	else:
 		set_status("对局结束：%s 获胜！" % winner_name)
 		end_title.text = "对局结束\n%s 获胜！" % winner_name
+		if art:
+			art.texture = TEX_END_WIN if local_won else TEX_END_LOSE
 	end_panel.visible = true
 
 

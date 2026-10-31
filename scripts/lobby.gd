@@ -49,10 +49,12 @@ const _NICK_NOUN: PackedStringArray = [
 @onready var leave_btn: Button = %LeaveBtn
 @onready var music_toggle: CheckBox = %MusicToggle
 @onready var sfx_toggle: CheckBox = %SfxToggle
+@onready var more_btn: Button = %MoreBtn
+@onready var secondary_box: VBoxContainer = %SecondaryBox
 
-const _STATUS_OK := Color(0.42, 0.9, 0.38, 1)
-const _STATUS_BAD := Color(0.95, 0.28, 0.24, 1)
-const _STATUS_IDLE := Color(0.74, 0.76, 0.7, 1)
+const _STATUS_OK := Color(0.18, 0.55, 0.22, 1)
+const _STATUS_BAD := Color(0.75, 0.18, 0.12, 1)
+const _STATUS_IDLE := Color(0.4, 0.32, 0.22, 1)
 
 var _web := false
 var _updating_ui := false
@@ -161,6 +163,9 @@ func _ready() -> void:
 	call_deferred("_center_panel")
 	_play_panel_intro()
 	_bind_audio_toggles()
+	_apply_main_button_styles()
+	if secondary_box:
+		secondary_box.visible = false
 	if not Net.is_dedicated():
 		Audio.request_music("lobby")
 
@@ -264,6 +269,8 @@ func _connect_controls() -> void:
 		solo_btn.pressed.connect(_on_solo_pressed)
 	if not advanced_btn.pressed.is_connected(_on_advanced_pressed):
 		advanced_btn.pressed.connect(_on_advanced_pressed)
+	if more_btn and not more_btn.pressed.is_connected(_on_more_pressed):
+		more_btn.pressed.connect(_on_more_pressed)
 	if not name_edit.text_submitted.is_connected(_on_name_submitted):
 		name_edit.text_submitted.connect(_on_name_submitted)
 	if not ready_btn.pressed.is_connected(_on_ready_pressed):
@@ -332,6 +339,16 @@ func _ui_click() -> void:
 	Audio.play_sfx("ui_click")
 
 
+func _on_more_pressed() -> void:
+	_ui_click()
+	if secondary_box == null:
+		return
+	secondary_box.visible = not secondary_box.visible
+	if more_btn:
+		more_btn.text = "收起选项 ▴" if secondary_box.visible else "更多选项 ▾"
+	call_deferred("_center_panel")
+
+
 func _on_advanced_pressed() -> void:
 	_ui_click()
 	advanced_box.visible = not advanced_box.visible
@@ -339,11 +356,62 @@ func _on_advanced_pressed() -> void:
 	call_deferred("_center_panel")
 
 
+## 给开始/创建/加入套上彩色黏土九宫（无烘焙字）。
+func _apply_main_button_styles() -> void:
+	_style_button(solo_btn, "btn_start")
+	_style_button(create_room_btn, "btn_create")
+	_style_button(enter_btn, "btn_join")
+	_style_button(start_btn, "btn_start")
+
+
+func _style_button(btn: Button, stem: String) -> void:
+	if btn == null:
+		return
+	var base := "res://assets/art/watercolor/lobby/%s.png" % stem
+	var hover := "res://assets/art/watercolor/lobby/%s_hover.png" % stem
+	var pressed := "res://assets/art/watercolor/lobby/%s_pressed.png" % stem
+	btn.add_theme_stylebox_override("normal", _clay_style(base))
+	btn.add_theme_stylebox_override("hover", _clay_style(hover))
+	btn.add_theme_stylebox_override("pressed", _clay_style(pressed))
+	btn.add_theme_stylebox_override("hover_pressed", _clay_style(pressed))
+	btn.add_theme_stylebox_override("disabled", _clay_style(base, Color(0.75, 0.75, 0.75, 0.85)))
+	btn.add_theme_color_override("font_color", Color(0.16, 0.1, 0.05, 1))
+	btn.add_theme_color_override("font_hover_color", Color(0.12, 0.07, 0.03, 1))
+	btn.add_theme_color_override("font_pressed_color", Color(0.1, 0.06, 0.02, 1))
+	btn.add_theme_color_override("font_disabled_color", Color(0.35, 0.32, 0.28, 1))
+	btn.add_theme_font_size_override("font_size", 18)
+
+
+func _clay_style(path: String, modulate: Color = Color.WHITE) -> StyleBoxTexture:
+	var box := StyleBoxTexture.new()
+	box.texture = load(path)
+	box.texture_margin_left = 20
+	box.texture_margin_top = 16
+	box.texture_margin_right = 20
+	box.texture_margin_bottom = 16
+	box.content_margin_left = 12
+	box.content_margin_top = 8
+	box.content_margin_right = 12
+	box.content_margin_bottom = 8
+	box.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	box.modulate_color = modulate
+	return box
+
+
 func _on_name_submitted(_text: String) -> void:
 	_on_enter_pressed()
 
 
 func _on_enter_pressed() -> void:
+	# 已连上时「加入」= 进所选房；未选房则提示（列表仍自动刷新）。
+	if _browsing and Net.is_client and Net.is_online():
+		_ui_click()
+		if _selected_room_code.is_empty():
+			_set_login_status("先点选一个房间再加入")
+			return
+		_join_selected_room()
+		return
 	_begin_enter(true)
 
 
@@ -599,7 +667,9 @@ func _set_browse_chrome(on: bool) -> void:
 	room_list_scroll.visible = true
 	create_room_btn.visible = true
 	create_room_btn.disabled = not on
-	enter_btn.text = "刷新列表" if on else "连接服务器"
+	enter_btn.text = "加入"
+	solo_btn.text = "开始"
+	create_room_btn.text = "创建房间"
 	if on:
 		_set_login_status("已连接，选择房间或新建" if login_status.text.begins_with("正在") or login_status.text.is_empty() else login_status.text)
 		if _dir_timer and _dir_timer.is_stopped():
@@ -617,7 +687,7 @@ func _refresh_room_list() -> void:
 	var entries: Array = GameState.lobby_directory
 	if entries.is_empty():
 		var empty := Label.new()
-		empty.text = "还没有房间，点下方新建"
+		empty.text = "还没有房间…\n点「创建房间」开一间"
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty.add_theme_font_size_override("font_size", 16)
 		empty.add_theme_color_override("font_color", Color(0.72, 0.74, 0.7, 1))
@@ -632,14 +702,18 @@ func _refresh_room_list() -> void:
 		var in_match := bool(entry.get("in_match", false))
 		var locked := bool(entry.get("locked", false))
 		var who := str(entry.get("who", ""))
-		var state := "对局中" if in_match else "等待中"
+		var state := "● 进行中" if in_match else "● 等待中"
 		var lock_mark := "锁 " if locked else ""
 		var btn := Button.new()
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0, 32)
-		btn.text = "%s%s · %s %d/%d" % [lock_mark, code, state, count, cap]
+		btn.custom_minimum_size = Vector2(0, 34)
+		btn.text = "%s%s  %d/%d  %s" % [lock_mark, code, count, cap, state]
 		if who != "":
-			btn.text += " · %s" % who
+			btn.text += "  %s" % who
+		if in_match:
+			btn.add_theme_color_override("font_color", Color(0.65, 0.2, 0.15, 1))
+		else:
+			btn.add_theme_color_override("font_color", Color(0.18, 0.45, 0.22, 1))
 		btn.disabled = in_match or count >= cap or not _browsing
 		if code == _selected_room_code:
 			btn.modulate = Color(1.15, 1.2, 0.85, 1.0)
@@ -725,7 +799,7 @@ func _show_login(message: String) -> void:
 	login_box.visible = true
 	room_box.visible = false
 	subtitle.visible = true
-	subtitle.text = "连接后选择房间，或新建一间"
+	subtitle.text = "选房间开战，或自己开一间"
 	_browsing = Net.is_client and Net.is_online()
 	_set_browse_chrome(_browsing)
 	_set_login_busy(false)

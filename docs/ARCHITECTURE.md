@@ -81,7 +81,7 @@ autoload Net / GameState / Audio   ← 连接、大厅快照、播放
 
 画面不进 `match/`：`MatchBoard` 画格子和实体，`MatchHud` 画文字和结算面板，`ClientPredict` 保存客机预演链和影子炸弹。`MatchSession` 管离开、被踢、断线、中途弃权和专用服空房回大厅。`@rpc` 仍只在 `game_root`。
 
-水彩贴图默认在 `assets/art/watercolor/`（`assets/art/pixel/` 仍保留便于回滚）：`lobby_bg.jpg` 铺满大厅；`tiles/` 地块；`entities/` 四色角色、炸弹与五种道具图标；`fx/` 爆炸中心/横竖焰、软墙碎裂三帧、缩圈 `sd_hazard_*`、空投预告 `airdrop_mark`。`MatchBoard` / `player` / `bomb` / `powerup` 预加载水彩路径。大厅 UI 九宫在 `assets/ui/`（石质/黏土水彩材质）；结算插画在 `art/watercolor/ui/end_win.png` / `end_lose.png`。
+水彩贴图默认在 `assets/art/watercolor/`（`assets/art/pixel/` 仍保留便于回滚）：`lobby_bg.jpg` 铺满大厅；`tiles/` 地块；`entities/` 四色角色、炸弹与五种道具图标；`fx/` 爆炸中心/横竖焰、软墙碎裂三帧、缩圈 `sd_hazard_*`、空投预告 `airdrop_mark`。`MatchBoard` / `player` / `bomb` / `powerup` 预加载水彩路径。大厅 UI 九宫在 `assets/ui/`（无烘焙字、stretch）；大厅场景资产在 `art/watercolor/lobby/`（石室背景/标题牌/立绘站台/彩色黏土主按钮）；结算插画在 `art/watercolor/ui/end_win.png` / `end_lose.png`。默认贴图过滤为 Linear。
 
 ## 大厅 / 房间
 
@@ -91,7 +91,7 @@ autoload Net / GameState / Audio   ← 连接、大厅快照、播放
 - 对局节点挂在自动加载 `MatchHost` 下，路径是 `/root/MatchHost/<房间码>`，客机和主机一致，RPC 不会串房。单机试试仍直接切到 `game.tscn`
 - 一间房对局中时，别的房间码照样能开新局。房满、密码错、码不对、对局中，都只拒绝这一次登记
 
-- 界面在 `scenes/lobby.tscn` + `scripts/lobby.gd`：登录页（昵称、进页自动连接并约每 5 秒刷新房间列表、列表约 3 行可见可滚动、新建房间、密码、单机试试、高级端口/地址）和等待房间（房间码、准备、房主开始、离开、密码、地图）
+- 界面在 `scenes/lobby.tscn` + `scripts/lobby.gd`：石室景深大厅（标题牌+立绘站台+房间卡片）；主按钮「开始 / 创建房间 / 加入」（映射单机 / 新建房 / 连接或进房）；昵称·密码·音量·本机开房·高级收入「更多选项」折叠；进页自动连接并约每 5 秒刷新房间列表；等待房间（房间码、准备、房主开始、离开、密码、地图）
 - 房间快照在 `GameState`：`room_code`、`players[*].ready`、`host_peer_id`、`room_password`、`map_id`、`seed_input`、`soft_seed`、`in_match`。广播只发给这间房里的人
 - 同步仍走 `GameState._rpc_sync_players`。快照是带 `players` 字段的字典；旧的「纯玩家字典」仍能被 `apply_snapshot` 读入
 - 房主是该房 `players` 里最小的 peer id。专用服进程是 peer 1，但自己不占玩家位；有人离开就重算这间房的房主
@@ -109,7 +109,7 @@ autoload Net / GameState / Audio   ← 连接、大厅快照、播放
 - 穿透与踢弹一样是 `0|1`，拾取后保持到本局结束
 - 放炸弹时把拥有者当前的 `pierce` 拷进该炸弹；爆炸只读炸弹上的值。之后再捡穿透，不会让已经放下去的炸弹变成穿透
 - 属性包 `_stats_pack` 为 `[bombs, range, speed, kick, pierce]`。客机按包覆盖；包里没有 pierce 时保留本地已有值
-- 外观只在 `powerup.gd`：按种类挂 48×48 像素图标（`Sprite2D`，就近采样），并做轻微呼吸缩放。不在这里改拾取或属性
+- 外观只在 `powerup.gd`：按种类挂 48×48 水彩图标（`Sprite2D`，线性采样），并做轻微呼吸缩放。不在这里改拾取或属性
 
 ## 联机与表现约定
 

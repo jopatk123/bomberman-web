@@ -59,8 +59,8 @@ func _run() -> void:
 		push_error("[verify_player_anim] 失败：walk 帧数不足")
 		quit(1)
 		return
-	if anim.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
-		push_error("[verify_player_anim] 失败：未使用 Nearest 采样")
+	if anim.texture_filter != CanvasItem.TEXTURE_FILTER_LINEAR:
+		push_error("[verify_player_anim] 失败：未使用 Linear 采样")
 		quit(1)
 		return
 

@@ -274,14 +274,20 @@ func _check_sources() -> bool:
 	if lobby_src.find("_maybe_autostart") >= 0 or lobby_src.find("自动开局") >= 0:
 		push_error("[verify_lobby] 失败：大厅里还提到自动开始")
 		return false
-	if scene_src.find("连接服务器") < 0 or scene_src.find("新建房间") < 0 or scene_src.find("单机试试") < 0 or scene_src.find("本机开房") < 0:
+	if scene_src.find("加入") < 0 or scene_src.find("创建房间") < 0 or scene_src.find("开始") < 0 or scene_src.find("本机开房") < 0:
 		push_error("[verify_lobby] 失败：lobby.tscn 缺少登录文案")
 		return false
 	if scene_src.find("RoomListScroll") < 0 or state_src.find("_rpc_sync_lobby_directory") < 0:
 		push_error("[verify_lobby] 失败：房间列表界面或目录 RPC 缺失")
 		return false
 	if scene_src.find("NinePatchRect") < 0 or scene_src.find("PanelRoot") < 0:
-		push_error("[verify_lobby] 失败：像素面板 NinePatch 缺失")
+		push_error("[verify_lobby] 失败：石质面板 NinePatch 缺失")
+		return false
+	if scene_src.find("TitlePlaque") < 0 or scene_src.find("CharStands") < 0:
+		push_error("[verify_lobby] 失败：标题牌或立绘站台缺失")
+		return false
+	if scene_src.find("axis_stretch_horizontal = 1") >= 0:
+		push_error("[verify_lobby] 失败：大厅九宫仍在 TILE 平铺")
 		return false
 	if scene_src.find("corner_radius") >= 0:
 		push_error("[verify_lobby] 失败：大厅里还有圆角样式")
@@ -308,7 +314,7 @@ func _check_lobby_ui(gs) -> bool:
 	var lobby = packed.instantiate()
 	root.add_child(lobby)
 	await process_frame
-	if lobby.enter_btn.text != "连接服务器" or lobby.create_room_btn.text != "新建房间" or lobby.solo_btn.text != "单机试试" or lobby.host_btn.text != "本机开房":
+	if lobby.enter_btn.text != "加入" or lobby.create_room_btn.text != "创建房间" or lobby.solo_btn.text != "开始" or lobby.host_btn.text != "本机开房":
 		push_error("[verify_lobby] 失败：按钮文案不对")
 		return false
 	if not lobby.host_btn.visible or not lobby.port_row.visible:
@@ -316,6 +322,9 @@ func _check_lobby_ui(gs) -> bool:
 		return false
 	if lobby.advanced_box.visible or lobby.room_box.visible or lobby.web_hint.visible:
 		push_error("[verify_lobby] 失败：高级、房间或网页提示一开始应是折叠的")
+		return false
+	if lobby.secondary_box != null and lobby.secondary_box.visible:
+		push_error("[verify_lobby] 失败：更多选项一开始应是折叠的")
 		return false
 	if lobby.login_box.visible == false:
 		push_error("[verify_lobby] 失败：登录区被藏起来了")

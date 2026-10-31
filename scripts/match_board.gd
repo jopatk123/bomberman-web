@@ -113,8 +113,10 @@ func repaint_cells(grid: Array, cells: Array, host: Node2D) -> void:
 func _make_tile(grid: Array, x: int, y: int) -> Sprite2D:
 	var spr := Sprite2D.new()
 	spr.centered = false
-	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	spr.position = Vector2(x * TILE, y * TILE)
+	# 略放大，减轻水彩格之间的白缝。
+	spr.scale = Vector2(49.0 / float(TILE), 49.0 / float(TILE))
 	spr.texture = tile_texture(grid, x, y)
 	return spr
 
@@ -194,7 +196,7 @@ func play_boom(bid: int, hit_cells: Array, sfx: Node, cleared_soft: Array = []) 
 	for c in hit_cells:
 		var spr := Sprite2D.new()
 		spr.texture = _blast_tex_for(c, center, hit_set)
-		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		spr.centered = true
 		spr.position = cell_to_pos(c)
 		spr.z_index = 3
@@ -226,7 +228,7 @@ func _blast_tex_for(cell: Vector2i, center: Vector2i, hit_set: Dictionary) -> Te
 func _play_soft_shatter(cell: Vector2i) -> void:
 	var spr := Sprite2D.new()
 	spr.texture = TEX_SOFT_BREAK[0]
-	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	spr.centered = true
 	spr.position = cell_to_pos(cell)
 	spr.z_index = 4
@@ -262,7 +264,7 @@ func add_sudden_death(cells: Array) -> void:
 			continue
 		var spr := Sprite2D.new()
 		spr.texture = TEX_SD_HAZARD[0]
-		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		spr.centered = true
 		spr.position = cell_to_pos(c)
 		spr.z_index = 2
@@ -324,7 +326,7 @@ func show_airdrop_mark(cell: Vector2i) -> void:
 	var spr := Sprite2D.new()
 	spr.name = "AirdropMark"
 	spr.texture = TEX_AIRDROP_MARK
-	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	spr.centered = false
 	spr.z_index = 2
 	spr.position = Vector2(cell.x * TILE, cell.y * TILE)

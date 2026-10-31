@@ -27,6 +27,19 @@ window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/minimize_html_build/plugin.cfg")
+
+[gui]
+
+theme/custom="res://assets/ui/default_theme.tres"
+theme/default_font_antialiasing=1
+theme/default_font_hinting=0
+theme/default_font_subpixel_positioning=0
+theme/default_font_generate_mipmaps=false
+theme/default_font_multichannel_signed_distance_field=false
+
 [input]
 
 move_up={
@@ -61,21 +74,8 @@ place_bomb={
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=1
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-textures/canvas_textures/default_texture_filter=0
-2d/snap/snap_2d_transforms_to_pixel=true
-2d/snap/snap_2d_vertices_to_pixel=true
-
-[gui]
-
-theme/custom="res://assets/ui/default_theme.tres"
-theme/default_font_antialiasing=0
-theme/default_font_hinting=0
-theme/default_font_subpixel_positioning=0
-theme/default_font_generate_mipmaps=false
-theme/default_font_multichannel_signed_distance_field=false
-
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/minimize_html_build/plugin.cfg")
+2d/snap/snap_2d_transforms_to_pixel=false
+2d/snap/snap_2d_vertices_to_pixel=false

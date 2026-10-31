@@ -20,8 +20,8 @@ func _init() -> void:
 		return
 	if font is FontFile:
 		var file := font as FontFile
-		if file.antialiasing != TextServer.FONT_ANTIALIASING_NONE:
-			push_error("中文字体抗锯齿不是关闭")
+		if file.antialiasing == TextServer.FONT_ANTIALIASING_NONE:
+			push_error("中文字体抗锯齿应开启（水彩 UI）")
 			quit(4)
 			return
 		if file.subpixel_positioning != TextServer.SUBPIXEL_POSITIONING_DISABLED:

@@ -282,8 +282,8 @@ func _scene() -> bool:
 	var mark_spr := mark as Sprite2D
 	if mark_spr.texture == null or mark_spr.texture.get_width() != 48 or mark_spr.texture.get_height() != 48:
 		return _fail("预告贴图不是 48×48")
-	if mark_spr.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
-		return _fail("预告不是就近采样")
+	if mark_spr.texture_filter != CanvasItem.TEXTURE_FILTER_LINEAR:
+		return _fail("预告不是线性采样")
 	if mark_spr.get_child_count() != 0:
 		return _fail("预告仍套着色块")
 	if not game.powerups.is_empty():

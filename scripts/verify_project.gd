@@ -73,9 +73,24 @@ func _run() -> void:
 		push_error("[verify] 失败：大厅背景扩展不是忽略尺寸")
 		quit(1)
 		return
-	var title := lobby.get_node_or_null("Center/Panel/Margin/Stack/Title")
+	var title := lobby.get_node_or_null("%Title")
 	if title == null or str((title as Label).text) != "摸鱼炸弹人":
-		push_error("[verify] 失败：大厅标题缺失")
+		push_error("[verify] 失败：大厅标题文案缺失")
+		quit(1)
+		return
+	var plaque := lobby.get_node_or_null("%TitlePlaque") as TextureRect
+	if plaque == null or plaque.texture == null:
+		push_error("[verify] 失败：大厅标题牌缺失")
+		quit(1)
+		return
+	var chars := lobby.get_node_or_null("CharStands") as TextureRect
+	if chars == null or chars.texture == null:
+		push_error("[verify] 失败：大厅立绘站台缺失")
+		quit(1)
+		return
+	var filt := int(ProjectSettings.get_setting("rendering/textures/canvas_textures/default_texture_filter"))
+	if filt != 1:
+		push_error("[verify] 失败：默认贴图过滤应是 Linear（1），实际 %d" % filt)
 		quit(1)
 		return
 	print("[verify] 大厅水彩背景通过")
@@ -200,8 +215,8 @@ func _run() -> void:
 		push_error("[verify] 失败：空地棋盘格贴图对不上")
 		quit(1)
 		return
-	if hard.centered or hard.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
-		push_error("[verify] 失败：地块精灵不是左上角就近采样")
+	if hard.centered or hard.texture_filter != CanvasItem.TEXTURE_FILTER_LINEAR:
+		push_error("[verify] 失败：地块精灵不是左上角线性采样")
 		quit(1)
 		return
 	if hard.position != Vector2.ZERO or floor_a.position != Vector2(48, 48):

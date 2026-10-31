@@ -1071,7 +1071,12 @@ func _check_winner() -> void:
 
 func _show_end_screen(winner_name: String) -> void:
 	_board.clear_airdrop_mark()
-	_hud.show_end(winner_name)
+	var local_won := false
+	var me := _local_control_id()
+	var roster := _participants()
+	if winner_name != "" and roster.has(me):
+		local_won = str(roster[me].get("name", "")) == winner_name
+	_hud.show_end(winner_name, local_won)
 	_refresh_spectator_hud()
 	_refresh_rematch_button()
 	_play_outcome_jingle(winner_name)

@@ -194,8 +194,8 @@ func _assert_powerup_icon(vis: Node, fname: String, ikind: int) -> bool:
 		push_error("[verify_pu] 失败：%s 没有 Icon 精灵" % fname)
 		return false
 	var spr := icon as Sprite2D
-	if not spr.centered or spr.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
-		push_error("[verify_pu] 失败：%s 不是居中就近采样" % fname)
+	if not spr.centered or spr.texture_filter != CanvasItem.TEXTURE_FILTER_LINEAR:
+		push_error("[verify_pu] 失败：%s 不是居中线性采样" % fname)
 		return false
 	if spr.texture == null or spr.texture.get_width() != 48 or spr.texture.get_height() != 48:
 		push_error("[verify_pu] 失败：%s 贴图不是 48x48" % fname)

@@ -43,7 +43,7 @@ func _check_files(audio) -> bool:
 		if ogg.loop != should_loop:
 			push_error("[verify_audio] 失败：%s 循环=%s" % [track, ogg.loop])
 			return false
-	for name in ["place_bomb", "boom", "kick", "death", "pickup", "ui_click", "enter_room", "ready"]:
+	for name in ["place_bomb", "boom", "kick", "death", "pickup", "ui_click", "enter_room", "ready", "airdrop_land", "soft_break"]:
 		var sfx_path := str(audio.sfx_path(name))
 		if not ResourceLoader.exists(sfx_path):
 			push_error("[verify_audio] 失败：缺少音效 %s" % sfx_path)
@@ -59,6 +59,13 @@ func _check_files(audio) -> bool:
 		return false
 	if game.find("place_bomb") < 0 or game.find("sudden_death") < 0 or game.find("_play_outcome_jingle") < 0:
 		push_error("[verify_audio] 失败：对局音频挂钩缺失")
+		return false
+	if game.find("airdrop_land") < 0 or game.find("_rpc_airdrop_land") < 0:
+		push_error("[verify_audio] 失败：空投落地音效挂钩缺失")
+		return false
+	var board := FileAccess.get_file_as_string("res://scripts/match_board.gd")
+	if board.find("soft_break") < 0 or board.find("play_boom") < 0:
+		push_error("[verify_audio] 失败：碎箱音效挂钩缺失")
 		return false
 	print("[verify_audio] 文件通过")
 	return true
@@ -114,6 +121,8 @@ func _check_playback(audio) -> bool:
 	audio.play_sfx("ui_click")
 	audio.play_sfx("enter_room")
 	audio.play_sfx("ready")
+	audio.play_sfx("airdrop_land")
+	audio.play_sfx("soft_break")
 	audio.play_music("not-a-track")
 	audio.request_music("lobby")
 	if str(audio.current_track) != "lobby":

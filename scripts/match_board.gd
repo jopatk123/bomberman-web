@@ -184,6 +184,9 @@ func play_boom(bid: int, hit_cells: Array, sfx: Node, cleared_soft: Array = []) 
 	free_bomb(bid)
 	if sfx and sfx.has_method("play_boom"):
 		sfx.play_boom()
+	# 碎箱音效与 boom 并存；整次爆炸只播一次，不按格叠播
+	if not cleared_soft.is_empty() and sfx and sfx.has_method("play_sfx"):
+		sfx.play_sfx("soft_break")
 	var hit_set: Dictionary = {}
 	for c in hit_cells:
 		hit_set[c] = true

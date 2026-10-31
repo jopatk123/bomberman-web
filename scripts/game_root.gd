@@ -829,6 +829,7 @@ func _rpc_airdrop_cancel() -> void:
 func _rpc_airdrop_land(spawn_xy: PackedInt32Array) -> void:
 	_board.clear_airdrop_mark()
 	_apply_spawn_pack(spawn_xy)
+	Audio.play_sfx("airdrop_land")  # call_local：主机与客机各播一次
 
 
 func _clear_powerups() -> void:

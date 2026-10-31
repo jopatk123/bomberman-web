@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/lobby.gd" id="1_lobby"]
 [ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby_bg.jpg" id="2_bg"]
@@ -8,6 +8,8 @@
 [ext_resource type="Theme" path="res://assets/ui/default_theme.tres" id="6_theme"]
 [ext_resource type="Texture2D" path="res://assets/art/watercolor/entities/bomb.png" id="7_bomb"]
 [ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/tab_rooms.png" id="8_tab"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/board_tilt.png" id="9_board"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/room_row.png" id="10_row"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -49,10 +51,10 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -340.0
-offset_top = 168.0
-offset_right = 340.0
-offset_bottom = 488.0
+offset_left = -300.0
+offset_top = 120.0
+offset_right = 300.0
+offset_bottom = 400.0
 grow_horizontal = 2
 mouse_filter = 2
 texture = ExtResource("3_chars")
@@ -95,15 +97,16 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="MarginContainer" parent="Center"]
-custom_minimum_size = Vector2(460, 0)
+custom_minimum_size = Vector2(420, 0)
 layout_mode = 0
-offset_right = 460.0
+offset_right = 420.0
 theme_override_constants/margin_left = 0
 theme_override_constants/margin_top = 0
 theme_override_constants/margin_right = 0
 theme_override_constants/margin_bottom = 0
 
 [node name="PanelRoot" type="NinePatchRect" parent="Center/Panel"]
+visible = false
 layout_mode = 2
 mouse_filter = 2
 texture = ExtResource("5_panel")
@@ -116,6 +119,7 @@ axis_stretch_vertical = 0
 texture_filter = 2
 
 [node name="BombTL" type="TextureRect" parent="Center/Panel/PanelRoot"]
+visible = false
 layout_mode = 1
 offset_left = -8.0
 offset_top = -10.0
@@ -128,6 +132,7 @@ stretch_mode = 5
 texture_filter = 2
 
 [node name="BombTR" type="TextureRect" parent="Center/Panel/PanelRoot"]
+visible = false
 layout_mode = 1
 anchor_left = 1.0
 anchor_right = 1.0
@@ -142,6 +147,7 @@ stretch_mode = 5
 texture_filter = 2
 
 [node name="BombBL" type="TextureRect" parent="Center/Panel/PanelRoot"]
+visible = false
 layout_mode = 1
 anchor_top = 1.0
 anchor_bottom = 1.0
@@ -156,6 +162,7 @@ stretch_mode = 5
 texture_filter = 2
 
 [node name="BombBR" type="TextureRect" parent="Center/Panel/PanelRoot"]
+visible = false
 layout_mode = 1
 anchor_left = 1.0
 anchor_top = 1.0
@@ -184,6 +191,7 @@ theme_override_constants/separation = 8
 
 [node name="Subtitle" type="Label" parent="Center/Panel/Margin/Stack"]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.26, 0.16, 1)
@@ -198,12 +206,50 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="RoomListHeader" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
+[node name="RoomBoard" type="Control" parent="Center/Panel/Margin/Stack/LoginBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(380, 210)
+layout_mode = 2
+size_flags_horizontal = 3
+rotation = -0.07
+pivot_offset = Vector2(190, 105)
+
+[node name="BoardBg" type="TextureRect" parent="Center/Panel/Margin/Stack/LoginBox/RoomBoard"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("9_board")
+expand_mode = 1
+stretch_mode = 5
+texture_filter = 2
+
+[node name="BoardMargin" type="MarginContainer" parent="Center/Panel/Margin/Stack/LoginBox/RoomBoard"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 22
+
+[node name="BoardStack" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/RoomBoard/BoardMargin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="RoomListHeader" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/RoomBoard/BoardMargin/BoardStack"]
 layout_mode = 2
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="TabIcon" type="TextureRect" parent="Center/Panel/Margin/Stack/LoginBox/RoomListHeader"]
+[node name="TabIcon" type="TextureRect" parent="Center/Panel/Margin/Stack/LoginBox/RoomBoard/BoardMargin/BoardStack/RoomListHeader"]
+visible = false
 custom_minimum_size = Vector2(18, 18)
 layout_mode = 2
 mouse_filter = 2
@@ -212,50 +258,82 @@ expand_mode = 1
 stretch_mode = 5
 texture_filter = 2
 
-[node name="RoomListLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/RoomListHeader"]
+[node name="RoomListLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/RoomBoard/BoardMargin/BoardStack/RoomListHeader"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.32, 0.22, 0.12, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.95, 0.9, 0.8, 1)
+theme_override_colors/font_outline_color = Color(0.12, 0.06, 0.02, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 18
 text = "房间列表"
+horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="RoomListScroll" type="ScrollContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
+[node name="RoomListScroll" type="ScrollContainer" parent="Center/Panel/Margin/Stack/LoginBox/RoomBoard/BoardMargin/BoardStack"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 132)
+custom_minimum_size = Vector2(0, 140)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 horizontal_scroll_mode = 0
+vertical_scroll_mode = 0
 
-[node name="RoomList" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/RoomListScroll"]
+[node name="RoomList" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/RoomBoard/BoardMargin/BoardStack/RoomListScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
+theme_override_constants/separation = 6
 
-[node name="MainRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="SoloBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/MainRow"]
+[node name="ButtonsTilt" type="Control" parent="Center/Panel/Margin/Stack/LoginBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(0, 108)
 layout_mode = 2
 size_flags_horizontal = 3
+rotation = 0.045
+pivot_offset = Vector2(190, 54)
+
+[node name="ButtonsCol" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ButtonsTilt"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 4.0
+offset_right = -8.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="MainRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ButtonsTilt/ButtonsCol"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SoloBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/ButtonsTilt/ButtonsCol/MainRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+size_flags_horizontal = 3
+rotation = -0.03
+pivot_offset = Vector2(80, 23)
 text = "开始"
 
-[node name="CreateRoomBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/MainRow"]
+[node name="CreateRoomBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/ButtonsTilt/ButtonsCol/MainRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 size_flags_horizontal = 3
+rotation = 0.04
+pivot_offset = Vector2(80, 23)
 disabled = true
 text = "创建房间"
 
-[node name="EnterBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox"]
+[node name="EnterBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/ButtonsTilt/ButtonsCol"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
+rotation = 0.02
+pivot_offset = Vector2(160, 23)
 text = "加入"
 
 [node name="LoginStatus" type="Label" parent="Center/Panel/Margin/Stack/LoginBox"]

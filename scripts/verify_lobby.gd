@@ -280,6 +280,12 @@ func _check_sources() -> bool:
 	if scene_src.find("RoomListScroll") < 0 or state_src.find("_rpc_sync_lobby_directory") < 0:
 		push_error("[verify_lobby] 失败：房间列表界面或目录 RPC 缺失")
 		return false
+	if scene_src.find("RoomBoard") < 0 or scene_src.find("board_tilt.png") < 0 or scene_src.find("ButtonsTilt") < 0:
+		push_error("[verify_lobby] 失败：倾斜木板或倾斜主按钮节点缺失")
+		return false
+	if lobby_src.find("ROOM_LIST_MAX") < 0 or lobby_src.find("还没有房间…") >= 0:
+		push_error("[verify_lobby] 失败：房间列表未限 3 条，或仍有空列表占位文案")
+		return false
 	if scene_src.find("NinePatchRect") < 0 or scene_src.find("PanelRoot") < 0:
 		push_error("[verify_lobby] 失败：石质面板 NinePatch 缺失")
 		return false
@@ -313,6 +319,10 @@ func _check_lobby_ui(gs) -> bool:
 	var packed: PackedScene = load("res://scenes/lobby.tscn")
 	var lobby = packed.instantiate()
 	root.add_child(lobby)
+	await process_frame
+	await process_frame
+	if lobby.has_method("_refresh_tilt_pivots"):
+		lobby._refresh_tilt_pivots()
 	await process_frame
 	if lobby.enter_btn.text != "加入" or lobby.create_room_btn.text != "创建房间" or lobby.solo_btn.text != "开始" or lobby.host_btn.text != "本机开房":
 		push_error("[verify_lobby] 失败：按钮文案不对")
@@ -355,8 +365,23 @@ func _check_lobby_ui(gs) -> bool:
 	if lobby.room_list_scroll == null or lobby.room_list == null:
 		push_error("[verify_lobby] 失败：房间列表节点缺失")
 		return false
+	if lobby.room_board == null or lobby.buttons_tilt == null:
+		push_error("[verify_lobby] 失败：倾斜木板或倾斜按钮容器缺失")
+		return false
+	if abs(float(lobby.room_board.rotation)) < 0.02 or abs(float(lobby.buttons_tilt.rotation)) < 0.02:
+		push_error("[verify_lobby] 失败：木板或主按钮未倾斜")
+		return false
 	if int(lobby.room_list_scroll.custom_minimum_size.y) < 120:
 		push_error("[verify_lobby] 失败：房间列表应大约露出 3 行")
+		return false
+	if int(lobby.ROOM_LIST_MAX) != 3:
+		push_error("[verify_lobby] 失败：ROOM_LIST_MAX 应为 3")
+		return false
+	gs.apply_lobby_directory([])
+	lobby._browsing = true
+	lobby._refresh_room_list()
+	if lobby.room_list.get_child_count() != 0:
+		push_error("[verify_lobby] 失败：空目录仍渲染了占位内容 %d" % lobby.room_list.get_child_count())
 		return false
 	gs.apply_lobby_directory([
 		{"code": "ABCD", "count": 1, "max": 4, "in_match": false, "locked": false, "who": "甲"},
@@ -366,8 +391,8 @@ func _check_lobby_ui(gs) -> bool:
 	])
 	lobby._browsing = true
 	lobby._refresh_room_list()
-	if lobby.room_list.get_child_count() != 4:
-		push_error("[verify_lobby] 失败：房间列表行数 %d" % lobby.room_list.get_child_count())
+	if lobby.room_list.get_child_count() != 3:
+		push_error("[verify_lobby] 失败：房间列表应最多 3 行，实际 %d" % lobby.room_list.get_child_count())
 		return false
 	lobby.name_edit.text = ""
 	lobby._commit_nickname()

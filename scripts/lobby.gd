@@ -5,6 +5,8 @@ const _NICK_PATH := "user://nickname.txt"
 const _NICK_LS := "bomberman_nickname"
 ## 浏览房间列表时自动刷新的间隔（秒）。
 const DIRECTORY_REFRESH_SEC := 5.0
+## 大厅倾斜木板最多展示的房间行数。
+const ROOM_LIST_MAX := 3
 ## 第一次进来或输入框为空时的默认昵称：形容词 + 名词 + 两位数字（不超过 16 字）。
 const _NICK_ADJ: PackedStringArray = [
 	"摸鱼", "划水", "咸鱼", "躺平", "摆烂", "潜水", "挂机", "佛系", "偷懒", "摸虾",
@@ -22,6 +24,8 @@ const _NICK_NOUN: PackedStringArray = [
 @onready var room_list_label: Label = %RoomListLabel
 @onready var room_list_scroll: ScrollContainer = %RoomListScroll
 @onready var room_list: VBoxContainer = %RoomList
+@onready var room_board: Control = %RoomBoard
+@onready var buttons_tilt: Control = %ButtonsTilt
 @onready var create_room_btn: Button = %CreateRoomBtn
 @onready var port_edit: LineEdit = %PortEdit
 @onready var address_edit: LineEdit = %AddressEdit
@@ -103,10 +107,15 @@ func _center_panel() -> void:
 		w += 1
 	if h % 2 == 1:
 		h += 1
-	var x := int((int(host.size.x) - w) / 2)
-	var y := int((int(host.size.y) - h) / 2)
+	# 面板略偏下，给后方立绘留空；水平略左偏抵消木板逆时针倾斜。
+	var x := int((int(host.size.x) - w) / 2) - 12
+	var y := int((int(host.size.y) - h) * 0.58)
+	y = maxi(y, int(host.size.y * 0.34))
+	if y + h > int(host.size.y) - 8:
+		y = maxi(8, int(host.size.y) - h - 8)
 	panel.position = Vector2(x, y)
 	panel.size = Vector2(w, h)
+	_refresh_tilt_pivots()
 	_centering = false
 
 
@@ -164,6 +173,7 @@ func _ready() -> void:
 	_play_panel_intro()
 	_bind_audio_toggles()
 	_apply_main_button_styles()
+	_apply_tilt_layout()
 	if secondary_box:
 		secondary_box.visible = false
 	if not Net.is_dedicated():
@@ -356,6 +366,31 @@ func _on_advanced_pressed() -> void:
 	call_deferred("_center_panel")
 
 
+
+## 容器布局会冲掉 rotation；就绪后多帧再倾斜木板与主按钮。
+func _apply_tilt_layout() -> void:
+	call_deferred("_refresh_tilt_pivots")
+	get_tree().create_timer(0.0).timeout.connect(_refresh_tilt_pivots)
+
+
+func _refresh_tilt_pivots() -> void:
+	if room_board:
+		room_board.pivot_offset = room_board.size * 0.5
+		room_board.rotation = -0.12
+	if buttons_tilt:
+		buttons_tilt.pivot_offset = buttons_tilt.size * 0.5
+		buttons_tilt.rotation = 0.09
+	if solo_btn and solo_btn.size.x > 1.0:
+		solo_btn.pivot_offset = solo_btn.size * 0.5
+		solo_btn.rotation = -0.06
+	if create_room_btn and create_room_btn.size.x > 1.0:
+		create_room_btn.pivot_offset = create_room_btn.size * 0.5
+		create_room_btn.rotation = 0.07
+	if enter_btn and enter_btn.size.x > 1.0:
+		enter_btn.pivot_offset = enter_btn.size * 0.5
+		enter_btn.rotation = 0.05
+
+
 ## 给开始/创建/加入套上彩色黏土九宫（无烘焙字）。
 func _apply_main_button_styles() -> void:
 	_style_button(solo_btn, "btn_start")
@@ -397,6 +432,34 @@ func _clay_style(path: String, modulate: Color = Color.WHITE) -> StyleBoxTexture
 	box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
 	box.modulate_color = modulate
 	return box
+
+
+func _style_room_row(btn: Button, in_match: bool) -> void:
+	var box := StyleBoxTexture.new()
+	box.texture = load("res://assets/art/watercolor/lobby/room_row.png")
+	box.texture_margin_left = 18
+	box.texture_margin_top = 12
+	box.texture_margin_right = 18
+	box.texture_margin_bottom = 12
+	box.content_margin_left = 12
+	box.content_margin_top = 6
+	box.content_margin_right = 12
+	box.content_margin_bottom = 6
+	box.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	btn.add_theme_stylebox_override("normal", box)
+	btn.add_theme_stylebox_override("hover", box)
+	btn.add_theme_stylebox_override("pressed", box)
+	btn.add_theme_stylebox_override("disabled", box)
+	btn.add_theme_font_size_override("font_size", 15)
+	if in_match:
+		btn.add_theme_color_override("font_color", Color(0.62, 0.18, 0.12, 1))
+		btn.add_theme_color_override("font_hover_color", Color(0.62, 0.18, 0.12, 1))
+		btn.add_theme_color_override("font_disabled_color", Color(0.55, 0.28, 0.22, 1))
+	else:
+		btn.add_theme_color_override("font_color", Color(0.2, 0.38, 0.18, 1))
+		btn.add_theme_color_override("font_hover_color", Color(0.14, 0.32, 0.12, 1))
+		btn.add_theme_color_override("font_disabled_color", Color(0.4, 0.4, 0.36, 1))
 
 
 func _on_name_submitted(_text: String) -> void:
@@ -685,16 +748,14 @@ func _refresh_room_list() -> void:
 		room_list.remove_child(child)
 		child.free()
 	var entries: Array = GameState.lobby_directory
+	# 无房：槽位留白，不放占位文案。
 	if entries.is_empty():
-		var empty := Label.new()
-		empty.text = "还没有房间…\n点「创建房间」开一间"
-		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		empty.add_theme_font_size_override("font_size", 16)
-		empty.add_theme_color_override("font_color", Color(0.72, 0.74, 0.7, 1))
-		room_list.add_child(empty)
 		_selected_room_code = ""
 		return
+	var shown := 0
 	for raw in entries:
+		if shown >= ROOM_LIST_MAX:
+			break
 		var entry: Dictionary = raw
 		var code := str(entry.get("code", ""))
 		var count := int(entry.get("count", 0))
@@ -706,20 +767,18 @@ func _refresh_room_list() -> void:
 		var lock_mark := "锁 " if locked else ""
 		var btn := Button.new()
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0, 34)
+		btn.custom_minimum_size = Vector2(0, 38)
 		btn.text = "%s%s  %d/%d  %s" % [lock_mark, code, count, cap, state]
 		if who != "":
 			btn.text += "  %s" % who
-		if in_match:
-			btn.add_theme_color_override("font_color", Color(0.65, 0.2, 0.15, 1))
-		else:
-			btn.add_theme_color_override("font_color", Color(0.18, 0.45, 0.22, 1))
+		_style_room_row(btn, in_match)
 		btn.disabled = in_match or count >= cap or not _browsing
 		if code == _selected_room_code:
-			btn.modulate = Color(1.15, 1.2, 0.85, 1.0)
+			btn.modulate = Color(1.12, 1.14, 0.9, 1.0)
 		var captured := code
 		btn.pressed.connect(func() -> void: _on_room_row_pressed(captured))
 		room_list.add_child(btn)
+		shown += 1
 
 
 func _on_room_row_pressed(code: String) -> void:

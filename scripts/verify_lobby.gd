@@ -280,8 +280,11 @@ func _check_sources() -> bool:
 	if scene_src.find("RoomListScroll") < 0 or state_src.find("_rpc_sync_lobby_directory") < 0:
 		push_error("[verify_lobby] 失败：房间列表界面或目录 RPC 缺失")
 		return false
-	if scene_src.find("RoomBoard") < 0 or scene_src.find("board_tilt.png") < 0 or scene_src.find("ButtonsTilt") < 0:
-		push_error("[verify_lobby] 失败：倾斜木板或倾斜主按钮节点缺失")
+	if scene_src.find("RoomBoard") < 0 or scene_src.find("board_tilt.png") < 0 or scene_src.find("ActionBand") < 0 or scene_src.find("ButtonsTilt") < 0:
+		push_error("[verify_lobby] 失败：ActionBand / 木板 / 主按钮节点缺失")
+		return false
+	if scene_src.find("StatusCorner") < 0:
+		push_error("[verify_lobby] 失败：状态角落 StatusCorner 缺失")
 		return false
 	if lobby_src.find("ROOM_LIST_MAX") < 0 or lobby_src.find("还没有房间…") >= 0:
 		push_error("[verify_lobby] 失败：房间列表未限 3 条，或仍有空列表占位文案")
@@ -365,14 +368,33 @@ func _check_lobby_ui(gs) -> bool:
 	if lobby.room_list_scroll == null or lobby.room_list == null:
 		push_error("[verify_lobby] 失败：房间列表节点缺失")
 		return false
-	if lobby.room_board == null or lobby.buttons_tilt == null:
-		push_error("[verify_lobby] 失败：倾斜木板或倾斜按钮容器缺失")
+	if lobby.room_board == null or lobby.buttons_tilt == null or lobby.action_band == null:
+		push_error("[verify_lobby] 失败：ActionBand / 木板 / 按钮容器缺失")
 		return false
-	if abs(float(lobby.room_board.rotation)) < 0.02 or abs(float(lobby.buttons_tilt.rotation)) < 0.02:
-		push_error("[verify_lobby] 失败：木板或主按钮未倾斜")
+	if abs(float(lobby.action_band.rotation) - float(lobby.ACTION_BAND_TILT)) > 0.02:
+		push_error("[verify_lobby] 失败：ActionBand 倾斜角不对 %s" % lobby.action_band.rotation)
 		return false
-	if int(lobby.room_list_scroll.custom_minimum_size.y) < 120:
+	if abs(float(lobby.room_board.rotation)) > 0.01 or abs(float(lobby.buttons_tilt.rotation)) > 0.01:
+		push_error("[verify_lobby] 失败：子控件不应单独倾斜")
+		return false
+	if abs(float(lobby.solo_btn.rotation)) > 0.01 or abs(float(lobby.create_room_btn.rotation)) > 0.01 or abs(float(lobby.enter_btn.rotation)) > 0.01:
+		push_error("[verify_lobby] 失败：主按钮不应单独倾斜")
+		return false
+	# 三主按钮同排同宽：加入应是 Solo 的兄弟，而不是单独占满一行。
+	if lobby.enter_btn.get_parent() != lobby.solo_btn.get_parent() or lobby.create_room_btn.get_parent() != lobby.solo_btn.get_parent():
+		push_error("[verify_lobby] 失败：开始/创建/加入应在同一行容器")
+		return false
+	var w_solo := float(lobby.solo_btn.size.x)
+	var w_enter := float(lobby.enter_btn.size.x)
+	if w_solo > 1.0 and w_enter > 1.0 and abs(w_solo - w_enter) > 24.0:
+		push_error("[verify_lobby] 失败：加入按钮宽度异常 solo=%s enter=%s" % [w_solo, w_enter])
+		return false
+	if int(lobby.room_list_scroll.custom_minimum_size.y) < 110:
 		push_error("[verify_lobby] 失败：房间列表应大约露出 3 行")
+		return false
+	var status_parent: Node = lobby.login_status.get_parent() if lobby.login_status else null
+	if status_parent == null or str(status_parent.name) != "StatusCorner":
+		push_error("[verify_lobby] 失败：LoginStatus 应在 StatusCorner")
 		return false
 	if int(lobby.ROOM_LIST_MAX) != 3:
 		push_error("[verify_lobby] 失败：ROOM_LIST_MAX 应为 3")

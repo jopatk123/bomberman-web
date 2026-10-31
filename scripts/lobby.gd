@@ -25,6 +25,7 @@ const _NICK_NOUN: PackedStringArray = [
 @onready var room_list_scroll: ScrollContainer = %RoomListScroll
 @onready var room_list: VBoxContainer = %RoomList
 @onready var room_board: Control = %RoomBoard
+@onready var action_band: Control = %ActionBand
 @onready var buttons_tilt: Control = %ButtonsTilt
 @onready var create_room_btn: Button = %CreateRoomBtn
 @onready var port_edit: LineEdit = %PortEdit
@@ -107,10 +108,18 @@ func _center_panel() -> void:
 		w += 1
 	if h % 2 == 1:
 		h += 1
-	# 面板略偏下，给后方立绘留空；水平略左偏抵消木板逆时针倾斜。
-	var x := int((int(host.size.x) - w) / 2) - 12
-	var y := int((int(host.size.y) - h) * 0.58)
-	y = maxi(y, int(host.size.y * 0.34))
+	# 登录态：操作带贴底，上半留给石室立绘；房间态仍居中偏下。
+	var x := int((int(host.size.x) - w) / 2)
+	var y: int
+	var login_mode := login_box != null and login_box.visible and (room_box == null or not room_box.visible)
+	if login_mode:
+		# 水平略右偏，抵消 ActionBand 逆时针倾斜后的视觉中心；贴底给立绘留空。
+		x += 8
+		y = maxi(int(host.size.y * 0.50), int(host.size.y) - h - 12)
+	else:
+		x -= 4
+		y = int((int(host.size.y) - h) * 0.52)
+		y = maxi(y, int(host.size.y * 0.28))
 	if y + h > int(host.size.y) - 8:
 		y = maxi(8, int(host.size.y) - h - 8)
 	panel.position = Vector2(x, y)
@@ -367,28 +376,26 @@ func _on_advanced_pressed() -> void:
 
 
 
-## 容器布局会冲掉 rotation；就绪后多帧再倾斜木板与主按钮。
+## 只倾斜 ActionBand 父节点；子控件保持 rotation=0，避免各自乱转。
+const ACTION_BAND_TILT := -0.105  ## 约 −6°
+
+
 func _apply_tilt_layout() -> void:
 	call_deferred("_refresh_tilt_pivots")
 	get_tree().create_timer(0.0).timeout.connect(_refresh_tilt_pivots)
 
 
 func _refresh_tilt_pivots() -> void:
+	if action_band:
+		action_band.pivot_offset = action_band.size * 0.5
+		action_band.rotation = ACTION_BAND_TILT
 	if room_board:
-		room_board.pivot_offset = room_board.size * 0.5
-		room_board.rotation = -0.12
+		room_board.rotation = 0.0
 	if buttons_tilt:
-		buttons_tilt.pivot_offset = buttons_tilt.size * 0.5
-		buttons_tilt.rotation = 0.09
-	if solo_btn and solo_btn.size.x > 1.0:
-		solo_btn.pivot_offset = solo_btn.size * 0.5
-		solo_btn.rotation = -0.06
-	if create_room_btn and create_room_btn.size.x > 1.0:
-		create_room_btn.pivot_offset = create_room_btn.size * 0.5
-		create_room_btn.rotation = 0.07
-	if enter_btn and enter_btn.size.x > 1.0:
-		enter_btn.pivot_offset = enter_btn.size * 0.5
-		enter_btn.rotation = 0.05
+		buttons_tilt.rotation = 0.0
+	for btn in [solo_btn, create_room_btn, enter_btn]:
+		if btn:
+			btn.rotation = 0.0
 
 
 ## 给开始/创建/加入套上彩色黏土九宫（无烘焙字）。
@@ -410,11 +417,22 @@ func _style_button(btn: Button, stem: String) -> void:
 	btn.add_theme_stylebox_override("pressed", _clay_style(pressed))
 	btn.add_theme_stylebox_override("hover_pressed", _clay_style(pressed))
 	btn.add_theme_stylebox_override("disabled", _clay_style(base, Color(0.75, 0.75, 0.75, 0.85)))
-	btn.add_theme_color_override("font_color", Color(0.16, 0.1, 0.05, 1))
-	btn.add_theme_color_override("font_hover_color", Color(0.12, 0.07, 0.03, 1))
-	btn.add_theme_color_override("font_pressed_color", Color(0.1, 0.06, 0.02, 1))
-	btn.add_theme_color_override("font_disabled_color", Color(0.35, 0.32, 0.28, 1))
-	btn.add_theme_font_size_override("font_size", 18)
+	# 紫按钮底深，用浅色字保证对比；黄/绿按钮用深字。
+	var light_on_dark := stem == "btn_create"
+	if light_on_dark:
+		btn.add_theme_color_override("font_color", Color(0.98, 0.94, 0.86, 1))
+		btn.add_theme_color_override("font_hover_color", Color(1, 0.98, 0.92, 1))
+		btn.add_theme_color_override("font_pressed_color", Color(0.92, 0.88, 0.78, 1))
+		btn.add_theme_color_override("font_disabled_color", Color(0.78, 0.74, 0.7, 1))
+		btn.add_theme_color_override("font_outline_color", Color(0.18, 0.08, 0.28, 1))
+		btn.add_theme_constant_override("outline_size", 3)
+	else:
+		btn.add_theme_color_override("font_color", Color(0.16, 0.1, 0.05, 1))
+		btn.add_theme_color_override("font_hover_color", Color(0.12, 0.07, 0.03, 1))
+		btn.add_theme_color_override("font_pressed_color", Color(0.1, 0.06, 0.02, 1))
+		btn.add_theme_color_override("font_disabled_color", Color(0.35, 0.32, 0.28, 1))
+		btn.add_theme_constant_override("outline_size", 0)
+	btn.add_theme_font_size_override("font_size", 17)
 
 
 func _clay_style(path: String, modulate: Color = Color.WHITE) -> StyleBoxTexture:
@@ -857,8 +875,8 @@ func _start_register(code: String, password: String) -> void:
 func _show_login(message: String) -> void:
 	login_box.visible = true
 	room_box.visible = false
-	subtitle.visible = true
-	subtitle.text = "选房间开战，或自己开一间"
+	# 水彩大厅用木牌标题，不再叠一句副标题挡立绘。
+	subtitle.visible = false
 	_browsing = Net.is_client and Net.is_online()
 	_set_browse_chrome(_browsing)
 	_set_login_busy(false)

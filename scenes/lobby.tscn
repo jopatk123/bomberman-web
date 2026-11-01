@@ -1,31 +1,31 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene format=3 uid="uid://c4j0hgxx4grgw"]
 
-[ext_resource type="Script" path="res://scripts/lobby.gd" id="1_lobby"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby_bg.jpg" id="2_bg"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/char_stand_frog.png" id="3_frog"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/title_plaque.png" id="4_title"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/panel_card.png" id="5_panel"]
-[ext_resource type="Theme" path="res://assets/ui/default_theme.tres" id="6_theme"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/entities/bomb.png" id="7_bomb"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/tab_rooms.png" id="8_tab"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/board_tilt.png" id="9_board"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/room_row.png" id="10_row"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/char_stand_raccoon.png" id="11_raccoon"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/char_stand_bird.png" id="12_bird"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/char_stand_axolotl.png" id="13_axolotl"]
+[ext_resource type="Script" uid="uid://b1nvwq2tagm2a" path="res://scripts/lobby.gd" id="1_lobby"]
+[ext_resource type="Texture2D" uid="uid://bulwbacy1802l" path="res://assets/art/watercolor/lobby_bg.jpg" id="2_bg"]
+[ext_resource type="Texture2D" uid="uid://bsbid6j41krc7" path="res://assets/art/watercolor/lobby/char_stand_frog.png" id="3_frog"]
+[ext_resource type="Texture2D" uid="uid://bm7qc66fab8j3" path="res://assets/art/watercolor/lobby/title_plaque.png" id="4_title"]
+[ext_resource type="Texture2D" uid="uid://baxhyiilr3rtt" path="res://assets/art/watercolor/lobby/panel_card.png" id="5_panel"]
+[ext_resource type="Theme" uid="uid://cik75s5ureyxd" path="res://assets/ui/default_theme.tres" id="6_theme"]
+[ext_resource type="Texture2D" uid="uid://n7ercml3k1ns" path="res://assets/art/watercolor/entities/bomb.png" id="7_bomb"]
+[ext_resource type="Texture2D" uid="uid://4nxqecx4tqsj" path="res://assets/art/watercolor/lobby/tab_rooms.png" id="8_tab"]
+[ext_resource type="Texture2D" uid="uid://dsdfojrv164uj" path="res://assets/art/watercolor/lobby/board_tilt.png" id="9_board"]
+[ext_resource type="Texture2D" uid="uid://b162ubtmvsmc3" path="res://assets/art/watercolor/lobby/char_stand_raccoon.png" id="11_raccoon"]
+[ext_resource type="Texture2D" uid="uid://b162ekan74yc3" path="res://assets/art/watercolor/lobby/char_stand_bird.png" id="12_bird"]
+[ext_resource type="Texture2D" uid="uid://b162dy6vvxkc3" path="res://assets/art/watercolor/lobby/char_stand_axolotl.png" id="13_axolotl"]
 
-[node name="Lobby" type="Control"]
+[node name="Lobby" type="Control" unique_id=2064899457]
+texture_filter = 2
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-texture_filter = 2
 theme = ExtResource("6_theme")
 script = ExtResource("1_lobby")
 
-[node name="Bg" type="TextureRect" parent="."]
+[node name="Bg" type="TextureRect" parent="." unique_id=46986442]
+texture_filter = 2
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -36,9 +36,9 @@ mouse_filter = 2
 texture = ExtResource("2_bg")
 expand_mode = 1
 stretch_mode = 6
-texture_filter = 2
 
-[node name="Dim" type="ColorRect" parent="."]
+[node name="Dim" type="ColorRect" parent="." unique_id=690914412]
+texture_filter = 2
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -47,9 +47,8 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 color = Color(0.12, 0.08, 0.04, 0.08)
-texture_filter = 2
 
-[node name="CharStands" type="Control" parent="."]
+[node name="CharStands" type="Control" parent="." unique_id=1508455298]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -61,7 +60,8 @@ offset_bottom = 360.0
 grow_horizontal = 2
 mouse_filter = 2
 
-[node name="Frog" type="TextureRect" parent="CharStands"]
+[node name="Frog" type="TextureRect" parent="CharStands" unique_id=698124448]
+texture_filter = 2
 layout_mode = 1
 offset_left = 32.0
 offset_top = 12.8
@@ -71,33 +71,31 @@ mouse_filter = 2
 texture = ExtResource("3_frog")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="Raccoon" type="TextureRect" parent="CharStands"]
+[node name="Raccoon" type="TextureRect" parent="CharStands" unique_id=429398255]
+texture_filter = 2
 layout_mode = 1
 offset_left = 184.0
-offset_top = 0.0
 offset_right = 321.6
 offset_bottom = 214.4
 mouse_filter = 2
 texture = ExtResource("11_raccoon")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="Bird" type="TextureRect" parent="CharStands"]
+[node name="Bird" type="TextureRect" parent="CharStands" unique_id=1210701741]
+texture_filter = 2
 layout_mode = 1
 offset_left = 320.0
-offset_top = 0.0
 offset_right = 450.4
 offset_bottom = 216.0
 mouse_filter = 2
 texture = ExtResource("12_bird")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="Axolotl" type="TextureRect" parent="CharStands"]
+[node name="Axolotl" type="TextureRect" parent="CharStands" unique_id=1900894602]
+texture_filter = 2
 layout_mode = 1
 offset_left = 447.2
 offset_top = 12.8
@@ -107,10 +105,10 @@ mouse_filter = 2
 texture = ExtResource("13_axolotl")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="TitlePlaque" type="TextureRect" parent="."]
+[node name="TitlePlaque" type="TextureRect" parent="." unique_id=347474434]
 unique_name_in_owner = true
+texture_filter = 2
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -124,9 +122,8 @@ mouse_filter = 2
 texture = ExtResource("4_title")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="Title" type="Label" parent="."]
+[node name="Title" type="Label" parent="." unique_id=846474785]
 unique_name_in_owner = true
 visible = false
 layout_mode = 0
@@ -134,7 +131,7 @@ offset_right = 40.0
 offset_bottom = 20.0
 text = "摸鱼炸弹人"
 
-[node name="StatusCorner" type="Control" parent="."]
+[node name="StatusCorner" type="Control" parent="." unique_id=1495755400]
 layout_mode = 1
 anchors_preset = 2
 anchor_top = 1.0
@@ -146,7 +143,7 @@ offset_bottom = -8.0
 grow_vertical = 0
 mouse_filter = 2
 
-[node name="LoginStatus" type="Label" parent="StatusCorner"]
+[node name="LoginStatus" type="Label" parent="StatusCorner" unique_id=1267602077]
 unique_name_in_owner = true
 custom_maximum_size = Vector2(348, -1)
 layout_mode = 1
@@ -159,11 +156,11 @@ theme_override_colors/font_color = Color(0.4, 0.32, 0.22, 1)
 theme_override_colors/font_outline_color = Color(0.08, 0.05, 0.02, 0.75)
 theme_override_constants/outline_size = 3
 theme_override_font_sizes/font_size = 13
-autowrap_mode = 3
 text = "填写昵称后连接，再选房间或新建"
 vertical_alignment = 2
+autowrap_mode = 3
 
-[node name="Center" type="Control" parent="."]
+[node name="Center" type="Control" parent="." unique_id=2119884164]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -172,30 +169,29 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Panel" type="MarginContainer" parent="Center"]
+[node name="Panel" type="MarginContainer" parent="Center" unique_id=341583571]
 custom_minimum_size = Vector2(420, 0)
 layout_mode = 0
-offset_right = 420.0
+offset_left = 256.0
+offset_top = 360.0
+offset_right = 720.0
+offset_bottom = 708.0
 theme_override_constants/margin_left = 0
 theme_override_constants/margin_top = 0
 theme_override_constants/margin_right = 0
 theme_override_constants/margin_bottom = 0
 
-[node name="PanelRoot" type="NinePatchRect" parent="Center/Panel"]
-visible = false
+[node name="PanelRoot" type="NinePatchRect" parent="Center/Panel" unique_id=719370569]
+texture_filter = 2
 layout_mode = 2
-mouse_filter = 2
 texture = ExtResource("5_panel")
 patch_margin_left = 32
 patch_margin_top = 32
 patch_margin_right = 32
 patch_margin_bottom = 32
-axis_stretch_horizontal = 0
-axis_stretch_vertical = 0
-texture_filter = 2
 
-[node name="BombTL" type="TextureRect" parent="Center/Panel/PanelRoot"]
-visible = false
+[node name="BombTL" type="TextureRect" parent="Center/Panel/PanelRoot" unique_id=621742226]
+texture_filter = 2
 layout_mode = 1
 offset_left = -8.0
 offset_top = -10.0
@@ -205,11 +201,11 @@ mouse_filter = 2
 texture = ExtResource("7_bomb")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="BombTR" type="TextureRect" parent="Center/Panel/PanelRoot"]
-visible = false
+[node name="BombTR" type="TextureRect" parent="Center/Panel/PanelRoot" unique_id=910464642]
+texture_filter = 2
 layout_mode = 1
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -24.0
@@ -220,11 +216,11 @@ mouse_filter = 2
 texture = ExtResource("7_bomb")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="BombBL" type="TextureRect" parent="Center/Panel/PanelRoot"]
-visible = false
+[node name="BombBL" type="TextureRect" parent="Center/Panel/PanelRoot" unique_id=1096221347]
+texture_filter = 2
 layout_mode = 1
+anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = -8.0
@@ -235,11 +231,11 @@ mouse_filter = 2
 texture = ExtResource("7_bomb")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="BombBR" type="TextureRect" parent="Center/Panel/PanelRoot"]
-visible = false
+[node name="BombBR" type="TextureRect" parent="Center/Panel/PanelRoot" unique_id=2083119704]
+texture_filter = 2
 layout_mode = 1
+anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
@@ -252,22 +248,20 @@ mouse_filter = 2
 texture = ExtResource("7_bomb")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+[node name="Margin" type="MarginContainer" parent="Center/Panel" unique_id=1443118663]
 layout_mode = 2
 theme_override_constants/margin_left = 22
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 22
 theme_override_constants/margin_bottom = 18
 
-[node name="Stack" type="VBoxContainer" parent="Center/Panel/Margin"]
+[node name="Stack" type="VBoxContainer" parent="Center/Panel/Margin" unique_id=1181894060]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Subtitle" type="Label" parent="Center/Panel/Margin/Stack"]
+[node name="Subtitle" type="Label" parent="Center/Panel/Margin/Stack" unique_id=858816606]
 unique_name_in_owner = true
-visible = false
 custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.26, 0.16, 1)
@@ -277,20 +271,18 @@ text = "选房间开战，或自己开一间"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="LoginBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack"]
+[node name="LoginBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack" unique_id=342088685]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="ActionBand" type="Control" parent="Center/Panel/Margin/Stack/LoginBox"]
+[node name="ActionBand" type="Control" parent="Center/Panel/Margin/Stack/LoginBox" unique_id=1131844372]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(420, 272)
 layout_mode = 2
 size_flags_horizontal = 3
-rotation = -0.105
-pivot_offset = Vector2(210, 136)
 
-[node name="BandStack" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand"]
+[node name="BandStack" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand" unique_id=927959635]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -299,14 +291,14 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 8
 
-[node name="RoomBoard" type="Control" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack"]
+[node name="RoomBoard" type="Control" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack" unique_id=1745191188]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(420, 200)
 layout_mode = 2
 size_flags_horizontal = 3
-rotation = 0.0
 
-[node name="BoardBg" type="TextureRect" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard"]
+[node name="BoardBg" type="TextureRect" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard" unique_id=1448907919]
+texture_filter = 2
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -317,9 +309,8 @@ mouse_filter = 2
 texture = ExtResource("9_board")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="BoardMargin" type="MarginContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard"]
+[node name="BoardMargin" type="MarginContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard" unique_id=325232481]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -331,26 +322,26 @@ theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 28
 theme_override_constants/margin_bottom = 18
 
-[node name="BoardStack" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin"]
+[node name="BoardStack" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin" unique_id=1226779489]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="RoomListHeader" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack"]
+[node name="RoomListHeader" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack" unique_id=587055546]
 layout_mode = 2
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="TabIcon" type="TextureRect" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack/RoomListHeader"]
+[node name="TabIcon" type="TextureRect" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack/RoomListHeader" unique_id=1694878483]
 visible = false
+texture_filter = 2
 custom_minimum_size = Vector2(18, 18)
 layout_mode = 2
 mouse_filter = 2
 texture = ExtResource("8_tab")
 expand_mode = 1
 stretch_mode = 5
-texture_filter = 2
 
-[node name="RoomListLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack/RoomListHeader"]
+[node name="RoomListLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack/RoomListHeader" unique_id=328885493]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.9, 0.8, 1)
@@ -361,7 +352,7 @@ text = "房间列表"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="RoomListScroll" type="ScrollContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack"]
+[node name="RoomListScroll" type="ScrollContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack" unique_id=902116239]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 128)
 layout_mode = 2
@@ -370,20 +361,19 @@ size_flags_vertical = 3
 horizontal_scroll_mode = 0
 vertical_scroll_mode = 0
 
-[node name="RoomList" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack/RoomListScroll"]
+[node name="RoomList" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/RoomBoard/BoardMargin/BoardStack/RoomListScroll" unique_id=1143198661]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="ButtonsTilt" type="Control" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack"]
+[node name="ButtonsTilt" type="Control" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack" unique_id=1212723722]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 52)
 layout_mode = 2
 size_flags_horizontal = 3
-rotation = 0.0
 
-[node name="ButtonsRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/ButtonsTilt"]
+[node name="ButtonsRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/ButtonsTilt" unique_id=1785667952]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -395,56 +385,50 @@ grow_vertical = 2
 theme_override_constants/separation = 10
 alignment = 1
 
-[node name="SoloBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/ButtonsTilt/ButtonsRow"]
+[node name="SoloBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/ButtonsTilt/ButtonsRow" unique_id=918745597]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_stretch_ratio = 1.0
-rotation = 0.0
 text = "开始"
 
-[node name="CreateRoomBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/ButtonsTilt/ButtonsRow"]
+[node name="CreateRoomBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/ButtonsTilt/ButtonsRow" unique_id=1982541336]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_stretch_ratio = 1.0
-rotation = 0.0
 disabled = true
 text = "创建房间"
 
-[node name="EnterBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/ButtonsTilt/ButtonsRow"]
+[node name="EnterBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/ActionBand/BandStack/ButtonsTilt/ButtonsRow" unique_id=1579250030]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_stretch_ratio = 1.0
-rotation = 0.0
 text = "加入"
 
-[node name="MoreWrap" type="CenterContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
+[node name="MoreWrap" type="CenterContainer" parent="Center/Panel/Margin/Stack/LoginBox" unique_id=376348433]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MoreBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/MoreWrap"]
+[node name="MoreBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/MoreWrap" unique_id=1223902035]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(168, 28)
 layout_mode = 2
 size_flags_horizontal = 4
 text = "更多选项 ▾"
 
-[node name="SecondaryBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox"]
+[node name="SecondaryBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox" unique_id=1080638333]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="HBox_Nick" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox"]
+[node name="HBox_Nick" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox" unique_id=1241889627]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="NameLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/HBox_Nick"]
+[node name="NameLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/HBox_Nick" unique_id=1662508610]
 custom_minimum_size = Vector2(72, 28)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.26, 0.16, 1)
@@ -452,7 +436,7 @@ theme_override_font_sizes/font_size = 15
 text = "昵称"
 vertical_alignment = 1
 
-[node name="NameEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/HBox_Nick"]
+[node name="NameEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/HBox_Nick" unique_id=2023333333]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
@@ -460,11 +444,11 @@ size_flags_horizontal = 3
 placeholder_text = "随机昵称"
 max_length = 16
 
-[node name="HBox_Password" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox"]
+[node name="HBox_Password" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox" unique_id=2033592164]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="PwLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/HBox_Password"]
+[node name="PwLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/HBox_Password" unique_id=1912228934]
 custom_minimum_size = Vector2(72, 28)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.26, 0.16, 1)
@@ -472,7 +456,7 @@ theme_override_font_sizes/font_size = 15
 text = "密码"
 vertical_alignment = 1
 
-[node name="JoinPasswordEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/HBox_Password"]
+[node name="JoinPasswordEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/HBox_Password" unique_id=1970509824]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
@@ -480,57 +464,57 @@ size_flags_horizontal = 3
 placeholder_text = "带锁房间再填"
 max_length = 32
 
-[node name="AudioRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox"]
+[node name="AudioRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox" unique_id=1081184968]
 layout_mode = 2
 theme_override_constants/separation = 16
 alignment = 1
 
-[node name="MusicToggle" type="CheckBox" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AudioRow"]
+[node name="MusicToggle" type="CheckBox" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AudioRow" unique_id=2008337069]
 unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 text = "音乐"
 
-[node name="SfxToggle" type="CheckBox" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AudioRow"]
+[node name="SfxToggle" type="CheckBox" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AudioRow" unique_id=1486963064]
 unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 text = "音效"
 
-[node name="HostBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox"]
+[node name="HostBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox" unique_id=680814612]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "本机开房"
 
-[node name="AdvancedBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox"]
+[node name="AdvancedBtn" type="Button" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox" unique_id=1710631581]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "高级"
 
-[node name="AdvancedBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox"]
+[node name="AdvancedBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox" unique_id=973659175]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="WebHint" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox"]
+[node name="WebHint" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox" unique_id=786468655]
 unique_name_in_owner = true
-custom_maximum_size = Vector2(420, -1)
 visible = false
+custom_maximum_size = Vector2(420, -1)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.32, 0.22, 1)
 theme_override_font_sizes/font_size = 13
 text = "将连接 wss://bomberman.jopatk.top/ws"
 autowrap_mode = 3
 
-[node name="PortRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox"]
+[node name="PortRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox" unique_id=1789082626]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="PortLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox/PortRow"]
+[node name="PortLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox/PortRow" unique_id=1626446422]
 custom_minimum_size = Vector2(72, 28)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.26, 0.16, 1)
@@ -538,18 +522,18 @@ theme_override_font_sizes/font_size = 15
 text = "端口"
 vertical_alignment = 1
 
-[node name="PortEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox/PortRow"]
+[node name="PortEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox/PortRow" unique_id=1314531870]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "9080"
 
-[node name="AddrRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox"]
+[node name="AddrRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox" unique_id=1870905628]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="AddrLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox/AddrRow"]
+[node name="AddrLabel" type="Label" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox/AddrRow" unique_id=1145501348]
 custom_minimum_size = Vector2(72, 28)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.26, 0.16, 1)
@@ -557,14 +541,14 @@ theme_override_font_sizes/font_size = 15
 text = "地址"
 vertical_alignment = 1
 
-[node name="AddressEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox/AddrRow"]
+[node name="AddressEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox/SecondaryBox/AdvancedBox/AddrRow" unique_id=681662737]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "127.0.0.1:9080"
 
-[node name="JoinCodeEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox"]
+[node name="JoinCodeEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/LoginBox" unique_id=721102894]
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(0, 28)
@@ -572,13 +556,13 @@ layout_mode = 2
 placeholder_text = "内部保留"
 max_length = 8
 
-[node name="RoomBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack"]
+[node name="RoomBox" type="VBoxContainer" parent="Center/Panel/Margin/Stack" unique_id=179090774]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="RoomStatus" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="RoomStatus" type="Label" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1041375109]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
@@ -587,18 +571,18 @@ theme_override_font_sizes/font_size = 14
 text = "等待中 0/4"
 horizontal_alignment = 1
 
-[node name="ServerNote" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="ServerNote" type="Label" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=334059747]
 unique_name_in_owner = true
-custom_maximum_size = Vector2(420, -1)
 visible = false
+custom_maximum_size = Vector2(420, -1)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.32, 0.22, 1)
 theme_override_font_sizes/font_size = 13
 text = "专用服务器。把房间码发给同事，就能各开一局。"
-autowrap_mode = 3
 horizontal_alignment = 1
+autowrap_mode = 3
 
-[node name="RoomCodeLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="RoomCodeLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1073362266]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
@@ -607,22 +591,22 @@ theme_override_font_sizes/font_size = 18
 text = "房间码"
 horizontal_alignment = 1
 
-[node name="RoomIndex" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="RoomIndex" type="Label" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1198822797]
 unique_name_in_owner = true
-custom_maximum_size = Vector2(420, -1)
 visible = false
+custom_maximum_size = Vector2(420, -1)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.32, 0.22, 1)
 theme_override_font_sizes/font_size = 14
-autowrap_mode = 3
 text = "还没有房间"
 horizontal_alignment = 1
+autowrap_mode = 3
 
-[node name="RoomPwRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="RoomPwRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1058857938]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="RoomPwLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/RoomPwRow"]
+[node name="RoomPwLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/RoomPwRow" unique_id=2064244257]
 custom_minimum_size = Vector2(72, 28)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.26, 0.16, 1)
@@ -630,7 +614,7 @@ theme_override_font_sizes/font_size = 15
 text = "密码"
 vertical_alignment = 1
 
-[node name="RoomPasswordEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/RoomBox/RoomPwRow"]
+[node name="RoomPasswordEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/RoomBox/RoomPwRow" unique_id=394475455]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
@@ -638,7 +622,7 @@ size_flags_horizontal = 3
 placeholder_text = "空为公开房"
 max_length = 32
 
-[node name="RoomAccess" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/RoomPwRow"]
+[node name="RoomAccess" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/RoomPwRow" unique_id=1466457067]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.32, 0.22, 1)
@@ -646,11 +630,11 @@ theme_override_font_sizes/font_size = 15
 text = "公开房"
 vertical_alignment = 1
 
-[node name="MapRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="MapRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=389710847]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="MapLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/MapRow"]
+[node name="MapLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/MapRow" unique_id=1620528481]
 custom_minimum_size = Vector2(72, 28)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.26, 0.16, 1)
@@ -658,27 +642,27 @@ theme_override_font_sizes/font_size = 15
 text = "地图"
 vertical_alignment = 1
 
-[node name="MapOption" type="OptionButton" parent="Center/Panel/Margin/Stack/RoomBox/MapRow"]
+[node name="MapOption" type="OptionButton" parent="Center/Panel/Margin/Stack/RoomBox/MapRow" unique_id=1108868215]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MapDescLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="MapDescLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1345688024]
 unique_name_in_owner = true
 custom_maximum_size = Vector2(420, -1)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.42, 0.34, 0.24, 1)
 theme_override_font_sizes/font_size = 13
-autowrap_mode = 3
 text = "标准柱阵，攻守均衡"
+autowrap_mode = 3
 
-[node name="SeedRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="SeedRow" type="HBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1766155250]
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SeedLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/SeedRow"]
+[node name="SeedLabel" type="Label" parent="Center/Panel/Margin/Stack/RoomBox/SeedRow" unique_id=1058054449]
 custom_minimum_size = Vector2(72, 28)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.26, 0.16, 1)
@@ -686,14 +670,14 @@ theme_override_font_sizes/font_size = 15
 text = "软墙种子"
 vertical_alignment = 1
 
-[node name="SeedEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/RoomBox/SeedRow"]
+[node name="SeedEdit" type="LineEdit" parent="Center/Panel/Margin/Stack/RoomBox/SeedRow" unique_id=1573016822]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "空=随机；整数=固定"
 
-[node name="MapHint" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="MapHint" type="Label" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1385043034]
 unique_name_in_owner = true
 custom_maximum_size = Vector2(420, -1)
 layout_mode = 2
@@ -702,32 +686,32 @@ theme_override_font_sizes/font_size = 13
 text = "只有房主能改地图和密码"
 autowrap_mode = 3
 
-[node name="PlayersTitle" type="Label" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="PlayersTitle" type="Label" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1681063026]
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.32, 0.22, 0.12, 1)
 theme_override_font_sizes/font_size = 16
 text = "房间玩家"
 
-[node name="PlayerList" type="VBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="PlayerList" type="VBoxContainer" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1766004875]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="ReadyBtn" type="Button" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="ReadyBtn" type="Button" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1782406971]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 text = "准备"
 
-[node name="StartBtn" type="Button" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="StartBtn" type="Button" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1280584718]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 disabled = true
 text = "开始对局"
 
-[node name="LeaveBtn" type="Button" parent="Center/Panel/Margin/Stack/RoomBox"]
+[node name="LeaveBtn" type="Button" parent="Center/Panel/Margin/Stack/RoomBox" unique_id=1736470190]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2

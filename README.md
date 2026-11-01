@@ -30,13 +30,13 @@ bomberman-web/
   scripts/…
   export_presets.cfg       # Web + Linux Server
   build/                   # 本地导出产物（gitignore）
-    web/                   # HTML5
-    server/                # Linux 专用服二进制
+	web/                   # HTML5
+	server/                # Linux 专用服二进制
   deploy/
-    Dockerfile             # targets: game | web
-    docker-compose.yml
-    nginx.conf             # 静态站 + /ws 反代
-    build-images.sh
+	Dockerfile             # targets: game | web
+	docker-compose.yml
+	nginx.conf             # 静态站 + /ws 反代
+	build-images.sh
   tools/pack_toy.sh        # 把 build/web 打成小玩具 zip
   docs/DEPLOY-TOY.md       # 小玩具托管说明
   project.godot
@@ -127,7 +127,7 @@ Caddy 示例：
 
 ```
 bomberman.jopatk.top {
-    reverse_proxy 127.0.0.1:18080
+	reverse_proxy 127.0.0.1:18080
 }
 ```
 

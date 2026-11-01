@@ -83,11 +83,17 @@ func _run() -> void:
 		push_error("[verify] 失败：大厅标题牌缺失")
 		quit(1)
 		return
-	var chars := lobby.get_node_or_null("CharStands") as TextureRect
-	if chars == null or chars.texture == null:
+	var chars := lobby.get_node_or_null("CharStands")
+	if chars == null:
 		push_error("[verify] 失败：大厅立绘站台缺失")
 		quit(1)
 		return
+	for stand_name in ["Frog", "Raccoon", "Bird", "Axolotl"]:
+		var stand := chars.get_node_or_null(stand_name) as TextureRect
+		if stand == null or stand.texture == null:
+			push_error("[verify] 失败：大厅立绘站台缺失 %s" % stand_name)
+			quit(1)
+			return
 	var filt := int(ProjectSettings.get_setting("rendering/textures/canvas_textures/default_texture_filter"))
 	if filt != 1:
 		push_error("[verify] 失败：默认贴图过滤应是 Linear（1），实际 %d" % filt)

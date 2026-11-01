@@ -1,8 +1,8 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/lobby.gd" id="1_lobby"]
 [ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby_bg.jpg" id="2_bg"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/char_stands.png" id="3_chars"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/char_stand_frog.png" id="3_frog"]
 [ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/title_plaque.png" id="4_title"]
 [ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/panel_card.png" id="5_panel"]
 [ext_resource type="Theme" path="res://assets/ui/default_theme.tres" id="6_theme"]
@@ -10,6 +10,9 @@
 [ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/tab_rooms.png" id="8_tab"]
 [ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/board_tilt.png" id="9_board"]
 [ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/room_row.png" id="10_row"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/char_stand_raccoon.png" id="11_raccoon"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/char_stand_bird.png" id="12_bird"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/lobby/char_stand_axolotl.png" id="13_axolotl"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -46,7 +49,7 @@ mouse_filter = 2
 color = Color(0.12, 0.08, 0.04, 0.08)
 texture_filter = 2
 
-[node name="CharStands" type="TextureRect" parent="."]
+[node name="CharStands" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -57,7 +60,51 @@ offset_right = 320.0
 offset_bottom = 360.0
 grow_horizontal = 2
 mouse_filter = 2
-texture = ExtResource("3_chars")
+
+[node name="Frog" type="TextureRect" parent="CharStands"]
+layout_mode = 1
+offset_left = 32.0
+offset_top = 12.8
+offset_right = 187.2
+offset_bottom = 224.0
+mouse_filter = 2
+texture = ExtResource("3_frog")
+expand_mode = 1
+stretch_mode = 5
+texture_filter = 2
+
+[node name="Raccoon" type="TextureRect" parent="CharStands"]
+layout_mode = 1
+offset_left = 184.0
+offset_top = 0.0
+offset_right = 321.6
+offset_bottom = 214.4
+mouse_filter = 2
+texture = ExtResource("11_raccoon")
+expand_mode = 1
+stretch_mode = 5
+texture_filter = 2
+
+[node name="Bird" type="TextureRect" parent="CharStands"]
+layout_mode = 1
+offset_left = 320.0
+offset_top = 0.0
+offset_right = 450.4
+offset_bottom = 216.0
+mouse_filter = 2
+texture = ExtResource("12_bird")
+expand_mode = 1
+stretch_mode = 5
+texture_filter = 2
+
+[node name="Axolotl" type="TextureRect" parent="CharStands"]
+layout_mode = 1
+offset_left = 447.2
+offset_top = 12.8
+offset_right = 599.2
+offset_bottom = 225.6
+mouse_filter = 2
+texture = ExtResource("13_axolotl")
 expand_mode = 1
 stretch_mode = 5
 texture_filter = 2

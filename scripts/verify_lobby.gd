@@ -295,6 +295,17 @@ func _check_sources() -> bool:
 	if scene_src.find("TitlePlaque") < 0 or scene_src.find("CharStands") < 0:
 		push_error("[verify_lobby] 失败：标题牌或立绘站台缺失")
 		return false
+	if (
+		scene_src.find("char_stand_frog.png") < 0
+		or scene_src.find("char_stand_raccoon.png") < 0
+		or scene_src.find("char_stand_bird.png") < 0
+		or scene_src.find("char_stand_axolotl.png") < 0
+	):
+		push_error("[verify_lobby] 失败：立绘站台未拆成 4 张独立贴图")
+		return false
+	if scene_src.find("char_stands.png") >= 0:
+		push_error("[verify_lobby] 失败：大厅仍引用合成立绘 char_stands.png")
+		return false
 	if scene_src.find("axis_stretch_horizontal = 1") >= 0:
 		push_error("[verify_lobby] 失败：大厅九宫仍在 TILE 平铺")
 		return false
@@ -396,6 +407,15 @@ func _check_lobby_ui(gs) -> bool:
 	if status_parent == null or str(status_parent.name) != "StatusCorner":
 		push_error("[verify_lobby] 失败：LoginStatus 应在 StatusCorner")
 		return false
+	var char_stands: Node = lobby.get_node_or_null("CharStands")
+	if char_stands == null:
+		push_error("[verify_lobby] 失败：CharStands 容器缺失")
+		return false
+	for stand_name in ["Frog", "Raccoon", "Bird", "Axolotl"]:
+		var stand := char_stands.get_node_or_null(stand_name) as TextureRect
+		if stand == null or stand.texture == null:
+			push_error("[verify_lobby] 失败：立绘站台节点缺失 %s" % stand_name)
+			return false
 	if int(lobby.ROOM_LIST_MAX) != 3:
 		push_error("[verify_lobby] 失败：ROOM_LIST_MAX 应为 3")
 		return false

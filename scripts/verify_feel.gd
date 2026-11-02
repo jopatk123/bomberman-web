@@ -290,7 +290,7 @@ func _run() -> void:
 	game.grid[1][2] = game.Cell.EMPTY
 	game.grid[1][3] = game.Cell.EMPTY
 	game._repaint_cells([Vector2i(2, 1), Vector2i(3, 1)])
-	var tiles_before: int = game.map_layer.get_child_count()
+	var tiles_before: int = game._board.ground.get_used_cells().size()
 	game.sudden.lethal[Vector2i(3, 1)] = true
 	game.bombs[55] = {
 		"x": 2, "y": 1, "owner": pid, "timer": 9.0, "range": 1,
@@ -300,7 +300,7 @@ func _run() -> void:
 		push_error("[verify_feel] 失败：踢进火里的炸弹应引爆")
 		quit(1)
 		return
-	if game.map_layer.get_child_count() != tiles_before:
+	if game._board.ground.get_used_cells().size() != tiles_before:
 		push_error("[verify_feel] 失败：重绘把整张地图重建了")
 		quit(1)
 		return

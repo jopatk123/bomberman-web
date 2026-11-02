@@ -2,7 +2,19 @@
 
 目标：在**不改变联机协议、玩法规则、美术资产和部署方式**的前提下，把当前“场景只有骨架、画面全靠运行时生成”的实现，改造成“场景与资源在编辑器里可见、可调、可预览”的手工搭建结构。
 
-本文是施工方案，不是已完成的工作记录。
+本文原是施工方案；第 0 节记录实施结果与方案的差异，其余章节保留原设计与步骤，供回溯。
+
+## 0. 实施记录
+
+分支 `refactor/manual-scenes`，基线 tag `baseline-manual-refactor`。已完成 Phase 1–8，`verify_*` 共 16 个脚本全绿。
+
+与方案有出入、需要知道的四点：
+
+1. **地图预览用 `@tool` 画样例**：没有人工在 TileMap 面板刷图，而是给 `board.gd` 加 `@tool`，编辑器里 `_ready()` 画一张经典图；运行时仍 `clear()` 后按 `grid` 重画。
+2. **HUD 没有改成容器布局**：`HUD/Status`、`HUD/BackBtn` 等路径是既有验证与脚本的契约，继续保留绝对 offset，只把结算面板拆成 `scenes/game/end_panel.tscn`。
+3. **大厅没有拆成 login/room 两个面板场景**：只做了样式 `.tres`、`room_row.tscn`、`Timer` 节点化；倾斜与居中仍在 `lobby.gd`，因为 `verify_lobby` 断言的是 `ActionBand.rotation` 与按钮同排同宽。
+4. **HUD/结算面板的专用服隐藏逻辑**保留在 `hud.gd` 的 `prepare()`，没有挪回场景。
+
 
 ---
 

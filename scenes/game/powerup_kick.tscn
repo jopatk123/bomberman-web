@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/powerup.gd" id="1_powerup"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/entities/powerup_kick.png" id="2_tex"]
+
+[node name="Powerup" type="Node2D"]
+script = ExtResource("1_powerup")
+
+[node name="Icon" type="Sprite2D" parent="."]
+texture_filter = 2
+texture = ExtResource("2_tex")

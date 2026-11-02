@@ -48,6 +48,23 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.12, 0.08, 0.04, 0.08)
 
+[node name="TitlePlaque" type="TextureRect" parent="Dim" unique_id=347474434]
+unique_name_in_owner = true
+texture_filter = 2
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -190.0
+offset_top = 6.0
+offset_right = 190.0
+offset_bottom = 168.0
+grow_horizontal = 2
+mouse_filter = 2
+texture = ExtResource("4_title")
+expand_mode = 1
+stretch_mode = 5
+
 [node name="CharStands" type="Control" parent="." unique_id=1508455298]
 layout_mode = 1
 anchors_preset = 5
@@ -63,10 +80,10 @@ mouse_filter = 2
 [node name="Frog" type="TextureRect" parent="CharStands" unique_id=698124448]
 texture_filter = 2
 layout_mode = 1
-offset_left = 32.0
-offset_top = 12.8
-offset_right = 187.2
-offset_bottom = 224.0
+offset_left = -43.0
+offset_top = 128.0
+offset_right = 112.2
+offset_bottom = 339.2
 mouse_filter = 2
 texture = ExtResource("3_frog")
 expand_mode = 1
@@ -75,9 +92,10 @@ stretch_mode = 5
 [node name="Raccoon" type="TextureRect" parent="CharStands" unique_id=429398255]
 texture_filter = 2
 layout_mode = 1
-offset_left = 184.0
-offset_right = 321.6
-offset_bottom = 214.4
+offset_left = 146.0
+offset_top = 91.0
+offset_right = 283.6
+offset_bottom = 305.4
 mouse_filter = 2
 texture = ExtResource("11_raccoon")
 expand_mode = 1
@@ -86,9 +104,10 @@ stretch_mode = 5
 [node name="Bird" type="TextureRect" parent="CharStands" unique_id=1210701741]
 texture_filter = 2
 layout_mode = 1
-offset_left = 320.0
-offset_right = 450.4
-offset_bottom = 216.0
+offset_left = 382.0
+offset_top = 89.0
+offset_right = 512.4
+offset_bottom = 305.0
 mouse_filter = 2
 texture = ExtResource("12_bird")
 expand_mode = 1
@@ -97,29 +116,12 @@ stretch_mode = 5
 [node name="Axolotl" type="TextureRect" parent="CharStands" unique_id=1900894602]
 texture_filter = 2
 layout_mode = 1
-offset_left = 447.2
-offset_top = 12.8
-offset_right = 599.2
-offset_bottom = 225.6
+offset_left = 580.0
+offset_top = 130.0
+offset_right = 732.0
+offset_bottom = 342.8
 mouse_filter = 2
 texture = ExtResource("13_axolotl")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="TitlePlaque" type="TextureRect" parent="." unique_id=347474434]
-unique_name_in_owner = true
-texture_filter = 2
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -190.0
-offset_top = 6.0
-offset_right = 190.0
-offset_bottom = 168.0
-grow_horizontal = 2
-mouse_filter = 2
-texture = ExtResource("4_title")
 expand_mode = 1
 stretch_mode = 5
 
@@ -212,6 +214,7 @@ offset_left = -24.0
 offset_top = -10.0
 offset_right = 8.0
 offset_bottom = 22.0
+grow_horizontal = 0
 mouse_filter = 2
 texture = ExtResource("7_bomb")
 expand_mode = 1
@@ -227,6 +230,7 @@ offset_left = -8.0
 offset_top = -22.0
 offset_right = 24.0
 offset_bottom = 10.0
+grow_vertical = 0
 mouse_filter = 2
 texture = ExtResource("7_bomb")
 expand_mode = 1
@@ -244,6 +248,8 @@ offset_left = -24.0
 offset_top = -22.0
 offset_right = 8.0
 offset_bottom = 10.0
+grow_horizontal = 0
+grow_vertical = 0
 mouse_filter = 2
 texture = ExtResource("7_bomb")
 expand_mode = 1
@@ -716,3 +722,9 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "离开房间"
+
+[node name="DirTimer" type="Timer" parent="." unique_id=1756485813]
+wait_time = 5.0
+
+[node name="RegisterTimer" type="Timer" parent="." unique_id=725843159]
+one_shot = true

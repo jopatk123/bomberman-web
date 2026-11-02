@@ -1,0 +1,56 @@
+[gd_resource type="SpriteFrames" format=3 uid="uid://u3maw4pb2qni"]
+
+[ext_resource type="Texture2D" uid="uid://b0qvx5mjshjyw" path="res://assets/art/watercolor/entities/anim/player_red_sheet.png" id="1_287to"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_8svfv"]
+atlas = ExtResource("1_287to")
+region = Rect2(0, 0, 48, 48)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_deki1"]
+atlas = ExtResource("1_287to")
+region = Rect2(48, 0, 48, 48)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_4suqb"]
+atlas = ExtResource("1_287to")
+region = Rect2(96, 0, 48, 48)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_uggm1"]
+atlas = ExtResource("1_287to")
+region = Rect2(144, 0, 48, 48)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bmofv"]
+atlas = ExtResource("1_287to")
+region = Rect2(192, 0, 48, 48)
+filter_clip = true
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_8svfv")
+}],
+"loop": 1,
+"name": &"idle",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_deki1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_4suqb")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_uggm1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_bmofv")
+}],
+"loop": 1,
+"name": &"walk",
+"speed": 8.0
+}]

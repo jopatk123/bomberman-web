@@ -1,0 +1,22 @@
+[gd_resource type="SpriteFrames" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/fx/sd_hazard_0.png" id="1_cbfs3"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/fx/sd_hazard_1.png" id="2_j8hw1"]
+[ext_resource type="Texture2D" path="res://assets/art/watercolor/fx/sd_hazard_2.png" id="3_cm220"]
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_cbfs3")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_j8hw1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_cm220")
+}],
+"loop": 1,
+"name": &"play",
+"speed": 4.0
+}]

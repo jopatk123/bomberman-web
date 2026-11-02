@@ -6,6 +6,8 @@ extends RefCounted
 
 const COLS := 15
 const ROWS := 13
+## 格子边长。画面与逻辑共用这一个值。
+const TILE := 48
 const CELL_EMPTY := 0
 const CELL_HARD := 1
 const CELL_SOFT := 2

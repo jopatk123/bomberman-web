@@ -1,22 +1,28 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/game_root.gd" id="1_game"]
-
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/ui/end_win.png" id="end_win"]
-[ext_resource type="Texture2D" path="res://assets/art/watercolor/ui/end_lose.png" id="end_lose"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+[ext_resource type="PackedScene" path="res://scenes/game/board.tscn" id="2_board"]
+[ext_resource type="PackedScene" path="res://scenes/game/player.tscn" id="3_player"]
+[ext_resource type="PackedScene" path="res://scenes/game/powerup_bomb.tscn" id="4_pu_bomb"]
+[ext_resource type="PackedScene" path="res://scenes/game/powerup_range.tscn" id="5_pu_range"]
+[ext_resource type="PackedScene" path="res://scenes/game/powerup_speed.tscn" id="6_pu_speed"]
+[ext_resource type="PackedScene" path="res://scenes/game/powerup_kick.tscn" id="7_pu_kick"]
+[ext_resource type="PackedScene" path="res://scenes/game/powerup_pierce.tscn" id="8_pu_pierce"]
+[ext_resource type="PackedScene" path="res://scenes/game/end_panel.tscn" id="9_end"]
+[ext_resource type="PackedScene" path="res://scenes/game/bomb.tscn" id="10_bomb"]
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_game")
 
-[node name="Map" type="Node2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(480, 360)
 
-[node name="Entities" type="Node2D" parent="."]
-
-[node name="Powerups" type="Node2D" parent="."]
-
-[node name="FX" type="Node2D" parent="."]
+[node name="Board" parent="." instance=ExtResource("2_board")]
+position = Vector2(120, 22)
 
 [node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("1_hud")
 
 [node name="Status" type="Label" parent="HUD"]
 offset_left = 16.0
@@ -43,8 +49,8 @@ offset_right = 680.0
 offset_bottom = 40.0
 theme_override_colors/font_color = Color(1, 0.4, 0.25, 1)
 theme_override_font_sizes/font_size = 16
-horizontal_alignment = 1
 text = "突然死亡倒计时"
+horizontal_alignment = 1
 
 [node name="SpecLabel" type="Label" parent="HUD"]
 visible = false
@@ -54,8 +60,8 @@ offset_right = 680.0
 offset_bottom = 370.0
 theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
 theme_override_font_sizes/font_size = 28
-horizontal_alignment = 1
 text = "已阵亡 · 观战中"
+horizontal_alignment = 1
 
 [node name="Help" type="Label" parent="HUD"]
 offset_left = 16.0
@@ -73,38 +79,27 @@ offset_right = 948.0
 offset_bottom = 40.0
 text = "返回大厅"
 
-[node name="EndPanel" type="PanelContainer" parent="HUD"]
-visible = false
-offset_left = 260.0
-offset_top = 120.0
-offset_right = 700.0
-offset_bottom = 560.0
+[node name="EndPanel" parent="HUD" instance=ExtResource("9_end")]
 
-[node name="VBox" type="VBoxContainer" parent="HUD/EndPanel"]
-layout_mode = 2
-theme_override_constants/separation = 12
+[node name="Preview" type="Node2D" parent="."]
 
-[node name="EndArt" type="TextureRect" parent="HUD/EndPanel/VBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 200)
-layout_mode = 2
-expand_mode = 1
-stretch_mode = 5
-texture_filter = 2
-texture = ExtResource("end_win")
+[node name="PreviewPlayer" parent="Preview" instance=ExtResource("3_player")]
+position = Vector2(144, 46)
 
-[node name="EndTitle" type="Label" parent="HUD/EndPanel/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 22
-horizontal_alignment = 1
-text = "对局结束"
+[node name="PreviewBomb" parent="Preview" instance=ExtResource("10_bomb")]
+position = Vector2(192, 46)
 
-[node name="RematchBtn" type="Button" parent="HUD/EndPanel/VBox"]
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-text = "再来一局"
+[node name="PreviewPowerup0" parent="Preview" instance=ExtResource("4_pu_bomb")]
+position = Vector2(264, 46)
 
-[node name="LobbyBtn" type="Button" parent="HUD/EndPanel/VBox"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
-text = "返回大厅"
+[node name="PreviewPowerup1" parent="Preview" instance=ExtResource("5_pu_range")]
+position = Vector2(312, 46)
+
+[node name="PreviewPowerup2" parent="Preview" instance=ExtResource("6_pu_speed")]
+position = Vector2(360, 46)
+
+[node name="PreviewPowerup3" parent="Preview" instance=ExtResource("7_pu_kick")]
+position = Vector2(408, 46)
+
+[node name="PreviewPowerup4" parent="Preview" instance=ExtResource("8_pu_pierce")]
+position = Vector2(456, 46)

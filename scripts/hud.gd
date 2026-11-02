@@ -1,56 +1,30 @@
-class_name MatchHud
-extends RefCounted
+extends CanvasLayer
 ## 对局文字和结算面板。只显示别处已经做出的决定。
-
+## 节点在 scenes/game.tscn 的 HUD 下，这里只填文字、切显隐。
 
 const HELP := "WASD/方向键移动 · 空格放炸弹 · 道具：蓝B+炸弹 / 红R+火力 / 青S+移速 / 紫K踢弹 / 黄P穿透"
 const TEX_END_WIN: Texture2D = preload("res://assets/art/watercolor/ui/end_win.png")
 const TEX_END_LOSE: Texture2D = preload("res://assets/art/watercolor/ui/end_lose.png")
 
-var status_label: Label
-var stats_label: Label
-var spec_label: Label
-var help_label: Label
-var sd_label: Label
-var end_panel: PanelContainer
-var end_title: Label
-var rematch_btn: Button
-var back_btn: Button
-var lobby_btn: Button
+@onready var status_label: Label = $Status
+@onready var stats_label: Label = $Stats
+@onready var spec_label: Label = $SpecLabel
+@onready var help_label: Label = $Help
+@onready var sd_label: Label = $SuddenDeathLabel
+@onready var end_panel: PanelContainer = $EndPanel
+@onready var end_title: Label = $EndPanel/VBox/EndTitle
+@onready var rematch_btn: Button = $EndPanel/VBox/RematchBtn
+@onready var back_btn: Button = $BackBtn
+@onready var lobby_btn: Button = $EndPanel/VBox/LobbyBtn
+
 var _sd_key: String = ""
-
-
-func bind(
-	status: Label,
-	stats: Label,
-	spec: Label,
-	help: Label,
-	sd: Label,
-	panel: PanelContainer,
-	title: Label,
-	rematch: Button,
-	back: Button,
-	lobby: Button
-) -> void:
-	status_label = status
-	stats_label = stats
-	spec_label = spec
-	help_label = help
-	sd_label = sd
-	end_panel = panel
-	end_title = title
-	rematch_btn = rematch
-	back_btn = back
-	lobby_btn = lobby
 
 
 func prepare(is_dedicated: bool) -> void:
 	end_panel.visible = false
 	spec_label.visible = false
-	if sd_label:
-		sd_label.visible = false
-	if help_label:
-		help_label.text = HELP
+	sd_label.visible = false
+	help_label.text = HELP
 	if is_dedicated:
 		back_btn.visible = false
 		rematch_btn.visible = false
@@ -58,8 +32,7 @@ func prepare(is_dedicated: bool) -> void:
 
 
 func set_status(text: String) -> void:
-	if status_label:
-		status_label.text = text
+	status_label.text = text
 
 
 func hide_end() -> void:

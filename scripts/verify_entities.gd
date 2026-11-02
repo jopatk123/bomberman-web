@@ -1,5 +1,5 @@
 extends SceneTree
-## 无界面：角色和炸弹像素贴图能载入，并挂到 MatchBoard 的实体层下。
+## 无界面：角色和炸弹像素贴图能载入，并挂到 Board 的实体层下。
 
 
 func _initialize() -> void:

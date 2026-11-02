@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[node name="PlayerRow" type="HBoxContainer"]
+theme_override_constants/separation = 10
+
+[node name="NameLabel" type="Label" parent="."]
+size_flags_horizontal = 3
+text = "玩家"
+
+[node name="HostLabel" type="Label" parent="."]
+modulate = Color(1, 0.85, 0.4, 1)
+text = "房主"
+
+[node name="ReadyLabel" type="Label" parent="."]
+modulate = Color(0.7, 0.72, 0.78, 1)
+text = "未准备"
+
+[node name="KickBtn" type="Button" parent="."]
+text = "请出"

@@ -24,9 +24,14 @@ bomberman-web/
   autoload/Net.gd          # WebSocket 开房/加入 + 网页默认 WSS
   autoload/GameState.gd
   assets/art/watercolor/  # 默认水彩（pixel/ 保留回滚）
+  assets/tilesets/         # 地块 TileSet
+  assets/anim/             # 角色 / 特效帧
+  assets/ui/styles/        # 按钮、房间行九宫样式
   assets/audio/            # BGM+SFX（SA3 水彩气质 Ogg，见 CREDITS.md）
   scenes/lobby.tscn        # 大厅（主场景）
-  scenes/game.tscn
+  scenes/lobby/            # 房间列表行等子场景
+  scenes/game.tscn         # 对局装配（Board / HUD / Camera2D / 编辑器预览）
+  scenes/game/             # 地块、角色、炸弹、道具、特效、结算面板
   scripts/…
   export_presets.cfg       # Web + Linux Server
   build/                   # 本地导出产物（gitignore）
@@ -186,4 +191,4 @@ godot --headless --path . -s res://scripts/verify_lobby.gd
 
 ## 开发约定
 
-项目分层与提交规则见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。新玩法逻辑优先放 `scripts/match/`，场景脚本只做编排与 RPC。
+项目分层与提交规则见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。新玩法逻辑优先放 `scripts/match/`，场景脚本只做编排与 RPC。对局画面是手工场景：地块、角色、炸弹、道具、特效都在 `scenes/game/*.tscn` 里可见，运行时只按权威数据填坐标与帧。

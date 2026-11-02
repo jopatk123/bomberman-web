@@ -1,27 +1,23 @@
 extends Node2D
 ## 角色外观，以及所在格的 meta。模拟在权威端（game_root.gd）。
 ## 节点 meta：格子 cell（Vector2i）、编号 peer_id（int）
-## 轻量动效（呼吸 / 弹跳）与走路帧动画都在本脚本，不参与权威规则。
+## 节点树在 scenes/game/player.tscn：Body + Name 由场景提供，这里只按运行时数据换帧、换名字。
 
-const SHEET_PATHS: Array[String] = [
-	"res://assets/art/watercolor/entities/anim/player_blue_sheet.png",
-	"res://assets/art/watercolor/entities/anim/player_red_sheet.png",
-	"res://assets/art/watercolor/entities/anim/player_green_sheet.png",
-	"res://assets/art/watercolor/entities/anim/player_yellow_sheet.png",
+const FRAMES: Array[SpriteFrames] = [
+	preload("res://assets/anim/player_blue_frames.tres"),
+	preload("res://assets/anim/player_red_frames.tres"),
+	preload("res://assets/anim/player_green_frames.tres"),
+	preload("res://assets/anim/player_yellow_frames.tres"),
 ]
-
-## 精灵表：idle + walk0..walk3，每帧 48×48
-const FRAME_W := 48
-const FRAME_H := 48
-const FRAME_COUNT := 5
-const IDLE_FRAME := 0
-const WALK_FPS := 8.0
 ## 一次格子移动后，保持「在走」状态的毫秒数（覆盖常见 move_cd）
 const MOVE_HOLD_MS := 280
 const POS_EPS_SQ := 0.25
 
-var _body: AnimatedSprite2D
+@onready var _body: AnimatedSprite2D = $Body
+@onready var _name_label: Label = $Name
+
 var _color_idx: int = 0
+var _display_name: String = ""
 var _last_pos: Vector2 = Vector2.ZERO
 var _moving_until_ms: int = 0
 var _face_left: bool = false
@@ -36,52 +32,21 @@ func setup(peer_id: int, cell: Vector2i, color: Color, display_name: String, til
 	position = Vector2(cell.x * tile + tile * 0.5, cell.y * tile + tile * 0.5)
 	_last_pos = position
 	_color_idx = _index_for(color)
+	_display_name = display_name
 	_phase = float(peer_id) * 0.37
+	if is_node_ready():
+		_apply_look()
 
-	_body = AnimatedSprite2D.new()
-	_body.name = "Body"
-	_body.centered = true
-	_body.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	_body.sprite_frames = _build_frames(_color_idx)
-	_body.animation = &"idle"
+
+func _ready() -> void:
+	_apply_look()
+
+
+func _apply_look() -> void:
+	_body.sprite_frames = FRAMES[_color_idx % FRAMES.size()]
 	_body.play(&"idle")
-	add_child(_body)
-
-	var label := Label.new()
-	label.text = display_name
-	label.position = Vector2(-24, -36)
-	var font := load("res://assets/fonts/GameCJK.ttf")
-	if font:
-		label.add_theme_font_override("font", font)
-	label.add_theme_font_size_override("font_size", 12)
-	label.add_theme_color_override("font_color", Color(1, 0.98, 0.9, 1))
-	label.add_theme_color_override("font_outline_color", Color(0.08, 0.05, 0.02, 0.9))
-	label.add_theme_constant_override("outline_size", 3)
-	add_child(label)
-
-
-func _build_frames(color_idx: int) -> SpriteFrames:
-	var sf := SpriteFrames.new()
-	var sheet: Texture2D = load(SHEET_PATHS[color_idx % SHEET_PATHS.size()])
-	var atlases: Array[AtlasTexture] = []
-	for i in FRAME_COUNT:
-		var at := AtlasTexture.new()
-		at.atlas = sheet
-		at.region = Rect2(i * FRAME_W, 0, FRAME_W, FRAME_H)
-		at.filter_clip = true
-		atlases.append(at)
-
-	sf.add_animation(&"idle")
-	sf.set_animation_loop(&"idle", true)
-	sf.set_animation_speed(&"idle", 1.0)
-	sf.add_frame(&"idle", atlases[IDLE_FRAME])
-
-	sf.add_animation(&"walk")
-	sf.set_animation_loop(&"walk", true)
-	sf.set_animation_speed(&"walk", WALK_FPS)
-	for i in range(1, FRAME_COUNT):
-		sf.add_frame(&"walk", atlases[i])
-	return sf
+	if not _display_name.is_empty():
+		_name_label.text = _display_name
 
 
 func _index_for(color: Color) -> int:
@@ -94,7 +59,7 @@ func _index_for(color: Color) -> int:
 		if d < best_d:
 			best_d = d
 			best_i = i
-	return best_i % SHEET_PATHS.size()
+	return best_i % FRAMES.size()
 
 
 func set_cell(cell: Vector2i, tile: int) -> void:

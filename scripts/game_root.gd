@@ -1,5 +1,5 @@
 extends Node2D
-## 对局编排：输入 → 对局规则 → RPC → MatchBoard / MatchHud。
+## 对局编排：输入 → 对局规则 → RPC → Board / HUD 场景节点。
 ## 格子规则在 scripts/match/。本脚本持有运行时字典，
 ## 也是对局里唯一发送 @rpc 的地方。
 ##
@@ -11,10 +11,9 @@ extends Node2D
 ## MatchSession — 离开、被踢、断线、弃权落地、专用服空房。
 ## BlastRules / SuddenDeath / KickRules / Arena / MatchBot / MatchFill / MovePredict — 职责同架构说明。
 ## MatchFill 在开局时补人机。权威端逐个推进；客机只画。
-## MatchBoard 画地块和实体。MatchHud 画文字。
+## board.gd 画地块和实体。hud.gd 画文字。
 ## ClientPredict 存本地移动链和影子炸弹。
 
-const TILE := 48
 const COLS := Arena.COLS
 const ROWS := Arena.ROWS
 const BOMB_FUSE := 2.0
@@ -28,11 +27,11 @@ const KICK_SLIDE_INTERVAL := 0.07
 enum Cell { EMPTY = 0, HARD = 1, SOFT = 2 }
 enum PKind { BOMB = 0, RANGE = 1, SPEED = 2, KICK = 3, PIERCE = 4 }
 
-@onready var map_layer: Node2D = $Map
-@onready var entities: Node2D = $Entities
-@onready var powerups_layer: Node2D = $Powerups
-@onready var fx_layer: Node2D = $FX
-@onready var hud: CanvasLayer = $HUD
+@onready var _board = $Board
+@onready var entities: Node2D = $Board/Entities
+@onready var powerups_layer: Node2D = $Board/Powerups
+@onready var fx_layer: Node2D = $Board/FX
+@onready var _hud = $HUD
 @onready var status_label: Label = $HUD/Status
 @onready var stats_label: Label = $HUD/Stats
 @onready var spec_label: Label = $HUD/SpecLabel
@@ -68,8 +67,6 @@ var airdrop: Airdrop = Airdrop.new()
 var _blast_hits: Array[Vector2i] = []
 ## 倒计时窗口里，距下次权威时钟同步还有多少秒。
 var _clock_sync_wait: float = 0.0
-var _board := MatchBoard.new()
-var _hud := MatchHud.new()
 var _predict := ClientPredict.new()
 var _session := MatchSession.new()
 ## 进场景树之前由 MatchHost 写入。离线单机为空。
@@ -94,11 +91,7 @@ var _ghost_node: Node2D:
 func _ready() -> void:
 	if has_meta("room_code"):
 		room_code = str(get_meta("room_code"))
-	_board.bind(map_layer, entities, powerups_layer, fx_layer, COLS, ROWS)
-	_hud.bind(
-		status_label, stats_label, spec_label, help_label, sd_label,
-		end_panel, end_title, rematch_btn, back_btn, lobby_btn
-	)
+	$Preview.queue_free()
 	back_btn.pressed.connect(_on_back)
 	rematch_btn.pressed.connect(_on_rematch)
 	lobby_btn.pressed.connect(_on_back)
@@ -113,7 +106,7 @@ func _ready() -> void:
 		GameState.player_list_changed.connect(_on_roster_changed)
 	if Net.is_dedicated():
 		visible = false
-		hud.visible = false
+		_hud.visible = false
 	map_id = Arena.resolve_map_id(_room_map_id())
 	grid = Arena.build_base_grid(map_id)
 	if Net.is_authority():
@@ -359,11 +352,11 @@ func _make_player_visual(peer_id: int, cell: Vector2i) -> Node2D:
 
 
 func _draw_map() -> void:
-	_board.draw_map(grid, self)
+	_board.draw_map(grid)
 
 
 func _repaint_cells(cells: Array) -> void:
-	_board.repaint_cells(grid, cells, self)
+	_board.repaint_cells(grid, cells)
 
 
 func _cell_to_pos(cell: Vector2i) -> Vector2:
@@ -1270,7 +1263,7 @@ func _can_predict_step(dst: Vector2i) -> bool:
 func _show_bomb_ghost(cell: Vector2i) -> void:
 	if not _can_predict_bomb(cell):
 		return
-	_predict.show_ghost(self, entities, cell, TILE)
+	_predict.show_ghost(self, entities, cell, Arena.TILE)
 
 
 func _can_predict_bomb(cell: Vector2i) -> bool:

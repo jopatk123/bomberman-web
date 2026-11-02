@@ -2,6 +2,7 @@ class_name ClientPredict
 extends RefCounted
 ## 本地角色的预演链，以及主机确认前先画出来的影子炸弹。
 ## 确认规则在 MovePredict。这里只存这条链和影子节点。
+const BOMB_SCENE: PackedScene = preload("res://scenes/game/bomb.tscn")
 
 
 var cells: Array = []
@@ -44,8 +45,7 @@ func push_step(dir: Vector2i, origin: Vector2i, can_step: Callable) -> bool:
 func show_ghost(host: Node, entities: Node2D, cell: Vector2i, tile: int) -> void:
 	clear_ghost()
 	var gen := ghost_gen
-	var root := Node2D.new()
-	root.set_script(load("res://scripts/bomb.gd"))
+	var root: Node2D = BOMB_SCENE.instantiate()
 	root.setup(0, cell, tile)
 	root.name = "BombGhost"
 	entities.add_child(root)

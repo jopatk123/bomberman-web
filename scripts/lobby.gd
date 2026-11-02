@@ -7,6 +7,30 @@ const _NICK_LS := "bomberman_nickname"
 const DIRECTORY_REFRESH_SEC := 5.0
 ## 大厅倾斜木板最多展示的房间行数。
 const ROOM_LIST_MAX := 3
+## 房间列表行、主按钮样式都从场景与 .tres 来，不在运行时拼 StyleBox。
+const ROOM_ROW_SCENE: PackedScene = preload("res://scenes/lobby/room_row.tscn")
+const PLAYER_ROW_SCENE: PackedScene = preload("res://scenes/lobby/player_row.tscn")
+const PLAYER_EMPTY_SCENE: PackedScene = preload("res://scenes/lobby/player_empty.tscn")
+const BTN_STYLES: Dictionary = {
+	"btn_start": [
+		preload("res://assets/ui/styles/btn_start_normal.tres"),
+		preload("res://assets/ui/styles/btn_start_hover.tres"),
+		preload("res://assets/ui/styles/btn_start_pressed.tres"),
+		preload("res://assets/ui/styles/btn_start_disabled.tres"),
+	],
+	"btn_create": [
+		preload("res://assets/ui/styles/btn_create_normal.tres"),
+		preload("res://assets/ui/styles/btn_create_hover.tres"),
+		preload("res://assets/ui/styles/btn_create_pressed.tres"),
+		preload("res://assets/ui/styles/btn_create_disabled.tres"),
+	],
+	"btn_join": [
+		preload("res://assets/ui/styles/btn_join_normal.tres"),
+		preload("res://assets/ui/styles/btn_join_hover.tres"),
+		preload("res://assets/ui/styles/btn_join_pressed.tres"),
+		preload("res://assets/ui/styles/btn_join_disabled.tres"),
+	],
+}
 ## 第一次进来或输入框为空时的默认昵称：形容词 + 名词 + 两位数字（不超过 16 字）。
 const _NICK_ADJ: PackedStringArray = [
 	"摸鱼", "划水", "咸鱼", "躺平", "摆烂", "潜水", "挂机", "佛系", "偷懒", "摸虾",
@@ -56,6 +80,8 @@ const _NICK_NOUN: PackedStringArray = [
 @onready var sfx_toggle: CheckBox = %SfxToggle
 @onready var more_btn: Button = %MoreBtn
 @onready var secondary_box: VBoxContainer = %SecondaryBox
+@onready var _dir_timer: Timer = $DirTimer
+@onready var _register_timer: Timer = $RegisterTimer
 
 const _STATUS_OK := Color(0.18, 0.55, 0.22, 1)
 const _STATUS_BAD := Color(0.75, 0.18, 0.12, 1)
@@ -66,10 +92,8 @@ var _updating_ui := false
 var _ui_lock := false
 var _pending_register := false
 var _shown_close := false
-var _register_timer: Timer
 var _browsing := false
 var _selected_room_code := ""
-var _dir_timer: Timer
 var _centering := false
 
 
@@ -171,6 +195,7 @@ func _ready() -> void:
 	if not GameState.lobby_directory_changed.is_connected(_on_lobby_directory_changed):
 		GameState.lobby_directory_changed.connect(_on_lobby_directory_changed)
 	_setup_directory_timer()
+	_register_timer.timeout.connect(_on_register_timeout)
 	_hide_seed_row()
 	_enter_initial_screen()
 	if not resized.is_connected(_center_panel):
@@ -238,11 +263,7 @@ func _hide_seed_row() -> void:
 
 
 func _setup_directory_timer() -> void:
-	_dir_timer = Timer.new()
 	_dir_timer.wait_time = DIRECTORY_REFRESH_SEC
-	_dir_timer.one_shot = false
-	_dir_timer.autostart = false
-	add_child(_dir_timer)
 	_dir_timer.timeout.connect(_on_directory_refresh_tick)
 
 
@@ -407,16 +428,14 @@ func _apply_main_button_styles() -> void:
 
 
 func _style_button(btn: Button, stem: String) -> void:
-	if btn == null:
+	if btn == null or not BTN_STYLES.has(stem):
 		return
-	var base := "res://assets/art/watercolor/lobby/%s.png" % stem
-	var hover := "res://assets/art/watercolor/lobby/%s_hover.png" % stem
-	var pressed := "res://assets/art/watercolor/lobby/%s_pressed.png" % stem
-	btn.add_theme_stylebox_override("normal", _clay_style(base))
-	btn.add_theme_stylebox_override("hover", _clay_style(hover))
-	btn.add_theme_stylebox_override("pressed", _clay_style(pressed))
-	btn.add_theme_stylebox_override("hover_pressed", _clay_style(pressed))
-	btn.add_theme_stylebox_override("disabled", _clay_style(base, Color(0.75, 0.75, 0.75, 0.85)))
+	var styles: Array = BTN_STYLES[stem]
+	btn.add_theme_stylebox_override("normal", styles[0])
+	btn.add_theme_stylebox_override("hover", styles[1])
+	btn.add_theme_stylebox_override("pressed", styles[2])
+	btn.add_theme_stylebox_override("hover_pressed", styles[2])
+	btn.add_theme_stylebox_override("disabled", styles[3])
 	# 紫按钮底深，用浅色字保证对比；黄/绿按钮用深字。
 	var light_on_dark := stem == "btn_create"
 	if light_on_dark:
@@ -433,51 +452,6 @@ func _style_button(btn: Button, stem: String) -> void:
 		btn.add_theme_color_override("font_disabled_color", Color(0.35, 0.32, 0.28, 1))
 		btn.add_theme_constant_override("outline_size", 0)
 	btn.add_theme_font_size_override("font_size", 17)
-
-
-func _clay_style(path: String, modulate: Color = Color.WHITE) -> StyleBoxTexture:
-	var box := StyleBoxTexture.new()
-	box.texture = load(path)
-	box.texture_margin_left = 20
-	box.texture_margin_top = 16
-	box.texture_margin_right = 20
-	box.texture_margin_bottom = 16
-	box.content_margin_left = 12
-	box.content_margin_top = 8
-	box.content_margin_right = 12
-	box.content_margin_bottom = 8
-	box.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
-	box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
-	box.modulate_color = modulate
-	return box
-
-
-func _style_room_row(btn: Button, in_match: bool) -> void:
-	var box := StyleBoxTexture.new()
-	box.texture = load("res://assets/art/watercolor/lobby/room_row.png")
-	box.texture_margin_left = 18
-	box.texture_margin_top = 12
-	box.texture_margin_right = 18
-	box.texture_margin_bottom = 12
-	box.content_margin_left = 12
-	box.content_margin_top = 6
-	box.content_margin_right = 12
-	box.content_margin_bottom = 6
-	box.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
-	box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
-	btn.add_theme_stylebox_override("normal", box)
-	btn.add_theme_stylebox_override("hover", box)
-	btn.add_theme_stylebox_override("pressed", box)
-	btn.add_theme_stylebox_override("disabled", box)
-	btn.add_theme_font_size_override("font_size", 15)
-	if in_match:
-		btn.add_theme_color_override("font_color", Color(0.62, 0.18, 0.12, 1))
-		btn.add_theme_color_override("font_hover_color", Color(0.62, 0.18, 0.12, 1))
-		btn.add_theme_color_override("font_disabled_color", Color(0.55, 0.28, 0.22, 1))
-	else:
-		btn.add_theme_color_override("font_color", Color(0.2, 0.38, 0.18, 1))
-		btn.add_theme_color_override("font_hover_color", Color(0.14, 0.32, 0.12, 1))
-		btn.add_theme_color_override("font_disabled_color", Color(0.4, 0.4, 0.36, 1))
 
 
 func _on_name_submitted(_text: String) -> void:
@@ -783,14 +757,13 @@ func _refresh_room_list() -> void:
 		var who := str(entry.get("who", ""))
 		var state := "● 进行中" if in_match else "● 等待中"
 		var lock_mark := "锁 " if locked else ""
-		var btn := Button.new()
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0, 38)
+		var btn: Button = ROOM_ROW_SCENE.instantiate()
 		btn.text = "%s%s  %d/%d  %s" % [lock_mark, code, count, cap, state]
 		if who != "":
 			btn.text += "  %s" % who
-		_style_room_row(btn, in_match)
 		btn.disabled = in_match or count >= cap or not _browsing
+		if in_match:
+			btn.add_theme_color_override("font_disabled_color", Color(0.55, 0.28, 0.22, 1))
 		if code == _selected_room_code:
 			btn.modulate = Color(1.12, 1.14, 0.9, 1.0)
 		var captured := code
@@ -970,35 +943,26 @@ func _rebuild_players() -> void:
 		child.free()
 	var ids := GameState.get_sorted_peer_ids()
 	if ids.is_empty():
-		var empty := Label.new()
-		empty.text = "（还没有人）"
-		player_list.add_child(empty)
+		player_list.add_child(PLAYER_EMPTY_SCENE.instantiate())
 		return
 	var me := GameState.local_peer_id()
 	var host := GameState.is_local_host()
 	for id in ids:
 		var info: Dictionary = GameState.players[id]
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		var name_label := Label.new()
-		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var row: HBoxContainer = PLAYER_ROW_SCENE.instantiate()
+		var name_label := row.get_node("NameLabel") as Label
 		name_label.text = str(info.get("name", "玩家"))
-		row.add_child(name_label)
-		if int(id) == GameState.host_peer_id:
-			var host_label := Label.new()
-			host_label.text = "房主"
-			host_label.modulate = Color(1, 0.85, 0.4)
-			row.add_child(host_label)
-		var ready_label := Label.new()
+		var host_label := row.get_node("HostLabel") as Label
+		host_label.visible = int(id) == GameState.host_peer_id
+		var ready_label := row.get_node("ReadyLabel") as Label
 		var is_ready := bool(info.get("ready", false))
 		ready_label.text = "已准备" if is_ready else "未准备"
 		ready_label.modulate = Color(0.45, 0.9, 0.55) if is_ready else Color(0.7, 0.72, 0.78)
-		row.add_child(ready_label)
-		if host and int(id) != me:
-			var kick := Button.new()
-			kick.text = "请出"
+		var kick := row.get_node("KickBtn") as Button
+		var can_kick := host and int(id) != me
+		kick.visible = can_kick
+		if can_kick:
 			kick.pressed.connect(_on_kick_pressed.bind(int(id)))
-			row.add_child(kick)
 		player_list.add_child(row)
 
 
@@ -1063,17 +1027,11 @@ func _save_nickname(nick: String) -> void:
 
 
 func _arm_register_timeout() -> void:
-	if _register_timer == null:
-		_register_timer = Timer.new()
-		_register_timer.one_shot = true
-		_register_timer.timeout.connect(_on_register_timeout)
-		add_child(_register_timer)
 	_register_timer.start(8.0)
 
 
 func _stop_register_timer() -> void:
-	if _register_timer != null:
-		_register_timer.stop()
+	_register_timer.stop()
 
 
 func _on_register_timeout() -> void:

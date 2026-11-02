@@ -14,9 +14,9 @@
 |------|--------|----------|
 | `autoload/` | 跨场景单例：`Net.gd`、`GameState.gd`、`Audio.gd`（BGM/SFX） | 格子模拟、爆炸、HUD 细节 |
 | `scripts/match/` | **纯逻辑**模块（`RefCounted` / `class_name`）：爆炸规则、突然死亡、踢炸弹、地图生成等 | 节点树、`rpc`、UI 控件 |
-| `scripts/`（根下） | 场景编排与表现：`game_root.gd`、`lobby.gd`、`player.gd`、`bomb.gd`、`powerup.gd` | 大段可抽离的规则算法 |
-| `scenes/` | `.tscn` 场景与节点布局 | 业务规则（规则写脚本） |
-| `assets/` | 字体、主题、贴图、音频。默认水彩在 `assets/art/watercolor/`（`assets/art/pixel/` 保留回滚）；音频在 `assets/audio/`（BGM+SFX 均为 SA3 水彩气质 Ogg；见 `CREDITS.md`） | 逻辑代码 |
+| `scripts/`（根下） | 场景编排与表现：`game_root.gd`、`lobby.gd`、`board.gd`、`hud.gd`、`player.gd`、`bomb.gd`、`powerup.gd` | 大段可抽离的规则算法 |
+| `scenes/` | `.tscn` 场景与节点布局。`scenes/game/` 放对局子场景（`board`、`player`、`bomb`、`powerup_*`、特效、`end_panel`），`scenes/lobby/` 放大厅子场景（`room_row`、`player_row`、`player_empty`） | 业务规则（规则写脚本） |
+| `assets/` | 字体、主题、贴图、音频。默认水彩在 `assets/art/watercolor/`（`assets/art/pixel/` 保留回滚）；`assets/tilesets/` 放地块 TileSet，`assets/anim/` 放角色与特效帧，`assets/ui/styles/` 放按钮/输入框九宫；音频在 `assets/audio/`（BGM+SFX 均为 SA3 水彩气质 Ogg；见 `CREDITS.md`） | 逻辑代码 |
 | `deploy/` | Docker / nginx / systemd | 游戏逻辑 |
 | `scripts/verify_*.gd` | headless 冒烟（`-s`） | 正式运行入口 |
 | `docs/` | 架构与设计说明 | — |
@@ -79,9 +79,31 @@ autoload Net / GameState / Audio   ← 连接、大厅快照、播放
 - `Airdrop` — 定时空投。开局 15 秒落地第一件，之后每 10 秒一件；落地前 1.5 秒预告。缩圈后继续，落点必须是非致死空地（无炸弹、无道具），并优先避开四角出生点周围 2 格。没有合法格就跳过这一轮。不改变软墙 38% 掉落
 - `MatchEnd` — 胜负 / 平局 / 再来一局资格 / 中途退出是否判负。场景切换在 `MatchSession`
 
-画面不进 `match/`：`MatchBoard` 画格子和实体，`MatchHud` 画文字和结算面板，`ClientPredict` 保存客机预演链和影子炸弹。`MatchSession` 管离开、被踢、断线、中途弃权和专用服空房回大厅。`@rpc` 仍只在 `game_root`。
+画面不进 `match/`：`board.gd`（挂在 `scenes/game/board.tscn`）画地块和实体，`hud.gd`（挂在 `HUD`）画文字和结算面板，`ClientPredict` 保存客机预演链和影子炸弹。`MatchSession` 管离开、被踢、断线、中途弃权和专用服空房回大厅。`@rpc` 仍只在 `game_root`。
 
-水彩贴图默认在 `assets/art/watercolor/`（`assets/art/pixel/` 仍保留便于回滚）：`lobby_bg.jpg` 铺满大厅；`tiles/` 地块；`entities/` 四色角色、炸弹与五种道具图标；`fx/` 爆炸中心/横竖焰、软墙碎裂三帧、缩圈 `sd_hazard_*`、空投预告 `airdrop_mark`。`MatchBoard` / `player` / `bomb` / `powerup` 预加载水彩路径。大厅 UI 九宫在 `assets/ui/`（无烘焙字、stretch）；大厅场景资产在 `art/watercolor/lobby/`（石室背景/标题牌/立绘站台/彩色黏土主按钮）；结算插画在 `art/watercolor/ui/end_win.png` / `end_lose.png`。默认贴图过滤为 Linear。
+## 对局表现层（手工场景）
+
+`scenes/game.tscn` 的节点是手工可读的，打开编辑器就能看到版式；运行时只按权威数据填内容。
+
+| 节点 | 场景 | 运行时职责 |
+|------|------|-----------|
+| `Camera2D` | `game.tscn` | 固定在 `(480, 360)`，不改缩放；棋盘原点由 `Board.position` 决定 |
+| `Board` | `game/board.tscn` | `TileMapLayer(Ground)` + `Entities` / `Powerups` / `FX` 三个容器 |
+| `Board/Ground` | `board.tscn` | `set_cell` 按 `grid` 刷地块；`TileSet` 里 4 个 source：0 floor_a、1 floor_b、2 hard、3 soft |
+| `Player_*` | `game/player.tscn` | 场景里 `Body(AnimatedSprite2D)` + `Name(Label)`；`_ready` 只按颜色换 `SpriteFrames` |
+| `Bomb_*` | `game/bomb.tscn` | `Body(Sprite2D)` 贴在场景里；脚本只管脉冲和引信着色 |
+| `Powerup_*` | `game/powerup_{bomb,range,speed,kick,pierce}.tscn` | 一种道具一个场景，图标不查表 |
+| 爆炸 / 碎墙 / 缩圈 / 空投 | `game/blast_*.tscn`、`node` 内 `soft_break`、`sd_hazard`、`airdrop_mark` | 实例化后设坐标轴与 z，动画结束自毁 |
+| `HUD` | `game.tscn`；结算面板 `game/end_panel.tscn` | 只填文字、切显隐；`HUD/BackBtn` 等路径是验证脚本的契约 |
+| `Preview` | `game.tscn` | 只在编辑器里给样例实体用；`game_root._ready()` 里 `queue_free()` |
+
+约定：
+
+- 普通场景脚本在编辑器里不跑 `_ready()`，所以**默认外观必须写在场景或 `.tres` 里**；坐标、颜色、昵称、道具种类这类运行时数据不会出现在编辑器。`board.gd` 是 `@tool`，只在编辑器里画一张经典图作预览。
+- `board.gd` 的 `draw_map()` 先 `clear()` 再按 `grid` 重画；场景里的预览地块/样例实体都只是编辑器可见的默认值。
+- 新增实体优先建 `.tscn`，脚本用 `@onready` 取子节点，不再用 `new()` 造视觉子节点。
+
+水彩贴图默认在 `assets/art/watercolor/`（`assets/art/pixel/` 仍保留便于回滚）：`lobby_bg.jpg` 铺满大厅；`tiles/` 地块；`entities/` 四色角色、炸弹与五种道具图标；`fx/` 爆炸中心/横竖焰、软墙碎裂三帧、缩圈 `sd_hazard_*`、空投预告 `airdrop_mark`。地块在 `assets/tilesets/arena_tileset.tres`；角色帧与特效帧在 `assets/anim/`；场景通过 `.tscn` 与 `.tres` 引用这些贴图，脚本不再 `preload` 单个贴图路径。大厅 UI 九宫在 `assets/ui/`（无烘焙字、stretch），按钮/房间行样式在 `assets/ui/styles/`；大厅场景资产在 `art/watercolor/lobby/`（石室背景/标题牌/立绘站台/彩色黏土主按钮）；结算插画在 `art/watercolor/ui/end_win.png` / `end_lose.png`。默认贴图过滤为 Linear。
 
 ## 大厅 / 房间
 

@@ -1,0 +1,4 @@
+[gd_scene format=3]
+
+[node name="EmptyPlayers" type="Label"]
+text = "（还没有人）"

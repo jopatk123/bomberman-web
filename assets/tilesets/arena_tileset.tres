@@ -1,0 +1,33 @@
+[gd_resource type="TileSet" format=3 uid="uid://bwjdl5jawoy1o"]
+
+[ext_resource type="Texture2D" uid="uid://8aov4a7i0c2i" path="res://assets/art/watercolor/tiles/floor_a.png" id="1_ad4kk"]
+[ext_resource type="Texture2D" uid="uid://4l6nhfd0ernd" path="res://assets/art/watercolor/tiles/floor_b.png" id="2_776b6"]
+[ext_resource type="Texture2D" uid="uid://srjfo2jqxs7c" path="res://assets/art/watercolor/tiles/hard.png" id="3_loes8"]
+[ext_resource type="Texture2D" uid="uid://blhy5m15lei8y" path="res://assets/art/watercolor/tiles/soft.png" id="4_l3udq"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_2vuqx"]
+texture = ExtResource("1_ad4kk")
+texture_region_size = Vector2i(48, 48)
+0:0/0 = 0
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_m12rl"]
+texture = ExtResource("2_776b6")
+texture_region_size = Vector2i(48, 48)
+0:0/0 = 0
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_igdv1"]
+texture = ExtResource("3_loes8")
+texture_region_size = Vector2i(48, 48)
+0:0/0 = 0
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_02wxs"]
+texture = ExtResource("4_l3udq")
+texture_region_size = Vector2i(48, 48)
+0:0/0 = 0
+
+[resource]
+tile_size = Vector2i(48, 48)
+sources/0 = SubResource("TileSetAtlasSource_2vuqx")
+sources/1 = SubResource("TileSetAtlasSource_m12rl")
+sources/2 = SubResource("TileSetAtlasSource_igdv1")
+sources/3 = SubResource("TileSetAtlasSource_02wxs")

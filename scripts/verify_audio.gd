@@ -63,7 +63,7 @@ func _check_files(audio) -> bool:
 	if game.find("airdrop_land") < 0 or game.find("_rpc_airdrop_land") < 0:
 		push_error("[verify_audio] 失败：空投落地音效挂钩缺失")
 		return false
-	var board := FileAccess.get_file_as_string("res://scripts/match_board.gd")
+	var board := FileAccess.get_file_as_string("res://scripts/board.gd")
 	if board.find("soft_break") < 0 or board.find("play_boom") < 0:
 		push_error("[verify_audio] 失败：碎箱音效挂钩缺失")
 		return false

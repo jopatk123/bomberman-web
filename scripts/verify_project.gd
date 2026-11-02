@@ -120,7 +120,12 @@ func _run() -> void:
 		push_error("[verify] 失败：棋盘应为 15×13")
 		quit(1)
 		return
-	var origin: Vector2 = game.position
+	var board_node := game.get_node_or_null("Board") as Node2D
+	if board_node == null:
+		push_error("[verify] 失败：对局缺少 Board 场景")
+		quit(1)
+		return
+	var origin: Vector2 = board_node.position
 	var playable_top := origin.y + 48.0
 	var map_right := origin.x + float(game.COLS) * 48.0
 	var map_bottom := origin.y + float(game.ROWS) * 48.0
@@ -182,68 +187,57 @@ func _run() -> void:
 			return
 		print("[verify] 已加载 ", path)
 
-	var host := Node2D.new()
-	var map := Node2D.new()
-	var ents := Node2D.new()
-	var drops := Node2D.new()
-	var fx := Node2D.new()
-	host.add_child(map)
-	host.add_child(ents)
-	host.add_child(drops)
-	host.add_child(fx)
-	tree_root.add_child(host)
-	var board := MatchBoard.new()
-	board.bind(map, ents, drops, fx, 2, 2)
+	var board: Node2D = load("res://scenes/game/board.tscn").instantiate()
+	tree_root.add_child(board)
+	await process_frame
+	var ground: TileMapLayer = board.get_node_or_null("Ground")
+	if ground == null or ground.tile_set == null:
+		push_error("[verify] 失败：Board/Ground 缺 TileMapLayer 或 TileSet")
+		quit(1)
+		return
+	if ground.tile_set.tile_size != Vector2i(48, 48):
+		push_error("[verify] 失败：TileSet 尺寸不是 48x48")
+		quit(1)
+		return
 	var grid: Array = [
 		[Arena.CELL_HARD, Arena.CELL_EMPTY],
 		[Arena.CELL_SOFT, Arena.CELL_EMPTY],
 	]
-	board.draw_map(grid, host)
+	board.draw_map(grid)
 	await process_frame
-	if map.get_child_count() != 4:
-		push_error("[verify] 失败：应有 4 张地块精灵，实际 %d" % map.get_child_count())
+	if ground.get_used_cells().size() != 4:
+		push_error("[verify] 失败：应有 4 格地块，实际 %d" % ground.get_used_cells().size())
 		quit(1)
 		return
-	for child in map.get_children():
-		if not (child is Sprite2D) or child is Polygon2D:
-			push_error("[verify] 失败：地图格子不是 Sprite2D")
-			quit(1)
-			return
-	var hard: Sprite2D = map.get_child(0)
-	var floor_b: Sprite2D = map.get_child(1)
-	var soft: Sprite2D = map.get_child(2)
-	var floor_a: Sprite2D = map.get_child(3)
-	if hard.texture != MatchBoard.TEX_HARD or soft.texture != MatchBoard.TEX_SOFT:
-		push_error("[verify] 失败：硬墙或软墙贴图对不上")
+	if ground.get_cell_source_id(Vector2i(0, 0)) != board.SRC_HARD:
+		push_error("[verify] 失败：硬墙 source 对不上")
 		quit(1)
 		return
-	if floor_b.texture != MatchBoard.TEX_FLOOR_B or floor_a.texture != MatchBoard.TEX_FLOOR_A:
-		push_error("[verify] 失败：空地棋盘格贴图对不上")
+	if ground.get_cell_source_id(Vector2i(0, 1)) != board.SRC_SOFT:
+		push_error("[verify] 失败：软墙 source 对不上")
 		quit(1)
 		return
-	if hard.centered or hard.texture_filter != CanvasItem.TEXTURE_FILTER_LINEAR:
-		push_error("[verify] 失败：地块精灵不是左上角线性采样")
+	if ground.get_cell_source_id(Vector2i(1, 0)) != board.SRC_FLOOR_B:
+		push_error("[verify] 失败：奇数空地应为 floor_b")
 		quit(1)
 		return
-	if hard.position != Vector2.ZERO or floor_a.position != Vector2(48, 48):
-		push_error("[verify] 失败：地块精灵位置不对")
+	if ground.get_cell_source_id(Vector2i(1, 1)) != board.SRC_FLOOR_A:
+		push_error("[verify] 失败：偶数空地应为 floor_a")
 		quit(1)
 		return
 	grid[1][0] = Arena.CELL_EMPTY
-	var tiles_before: int = map.get_child_count()
-	board.repaint_cells(grid, [Vector2i(0, 1)], host)
-	var painted: Sprite2D = map.get_child(2)
-	if map.get_child_count() != tiles_before or painted.texture != MatchBoard.TEX_FLOOR_B:
+	var tiles_before: int = ground.get_used_cells().size()
+	board.repaint_cells(grid, [Vector2i(0, 1)])
+	if ground.get_used_cells().size() != tiles_before:
+		push_error("[verify] 失败：就地重绘不该增删地块")
+		quit(1)
+		return
+	if ground.get_cell_source_id(Vector2i(0, 1)) != board.SRC_FLOOR_B:
 		push_error("[verify] 失败：软墙变空地时没有就地换成 floor_b")
 		quit(1)
 		return
-	for child in map.get_children():
-		if child is Polygon2D:
-			push_error("[verify] 失败：地图上还留着色块")
-			quit(1)
-			return
 	print("[verify] 水彩地块通过")
-	host.queue_free()
+	board.queue_free()
 	print("[verify] 成功")
 	quit(0)
 
